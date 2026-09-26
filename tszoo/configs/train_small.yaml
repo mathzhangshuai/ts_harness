@@ -9,8 +9,9 @@ data:
     past_feat_dynamic_cat: []
     past_feat_dynamic_real: []
   store: ../datasets/processed/m5-train-target
-  context: 512
-  horizon: 28
+  context: 49
+  horizon: 7
+  train_days: 180
   train_end: 1913
 model:
   attention:
@@ -29,3 +30,4 @@ training:
   device: cuda
   devices: auto
   strategy: auto
+  precision: bf16-mixed

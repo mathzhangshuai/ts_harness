@@ -5,7 +5,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | sales_train_validation.csv | d_1–d_1913，训练历史 |
-| sales_train_evaluation.csv | d_1–d_1941，其中最后 28 天作评测标签 |
+| sales_train_evaluation.csv | 原始文件含 d_1–d_1941；当前仅取 d_1914–d_1920 作 7 天评测标签 |
 | calendar.csv | 日期索引；WRMSSE 的周价格对齐 |
 | sell_prices.csv | WRMSSE 历史销售额权重，不作为模型输入 |
 | sample_submission.csv | 官方提交模板，不是未来销量 |

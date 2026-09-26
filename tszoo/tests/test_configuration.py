@@ -31,6 +31,8 @@ class ConfigurationTests(unittest.TestCase):
             for section, key, value in (
                 ("data", "fields", ["target", "feat_dynamic_real"]),
                 ("training", "epochs", True),
+                ("data", "train_days", True),
+                ("data", "train_days", 0),
                 ("training", "epochs", 0),
                 ("training", "steps", 1000),
                 ("training", "devices", 0),
@@ -38,6 +40,7 @@ class ConfigurationTests(unittest.TestCase):
                 ("training", "shuffle_block_size", 0),
                 ("training", "shuffle_block_size", True),
                 ("training", "strategy", "invalid"),
+                ("training", "precision", "invalid"),
                 ("model", "attention", {"variate_attention_policy": "invalid"}),
                 ("training", "lr", float("nan")),
             ):

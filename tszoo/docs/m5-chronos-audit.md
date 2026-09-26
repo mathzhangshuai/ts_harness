@@ -20,8 +20,8 @@ No parameter updates were performed during verification.
 - The local loss deliberately divides the sum over all observed target points
   and quantiles by the observed target count in the batch, as requested.
   Padding and missing labels are excluded from both numerator and denominator.
-  A completely unobserved batch raises an error. For one complete 28-day target,
-  the denominator is 28, not the padded length of 32. This reduction differs
+  A completely unobserved batch raises an error. For one complete 7-day target,
+  the denominator is 7, not the padded length of 16. This reduction differs
   from upstream; normalization and the pointwise quantile formula are unchanged.
 - Only sales channels are prediction targets in this project. Covariate channels
   are model inputs and never receive a forecasting loss or future sales labels.
@@ -55,7 +55,10 @@ model:
 
 Lightning owns process launch, DDP gradient synchronization, device transfer,
 optimization, clipping, progress display, distributed metric reduction and
-worker seeding. A LightningDataModule provides the loaders.
+worker seeding. A LightningDataModule provides the loaders. Training defaults to
+Lightning `bf16-mixed` precision, with `16-mixed` and `32-true` overrides, and sets
+`torch.set_float32_matmul_precision("medium")` before constructing the Trainer.
+FP32 matrix multiplication precision is separate from mixed precision autocast.
 
 M5 CSV joins, named feature selection and leak-free temporal windows remain
 dataset-specific code; Lightning does not implement these semantics.

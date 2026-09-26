@@ -162,8 +162,8 @@ def run(source, run_dir, output, *, summary_only=False):
         (run_dir / "resolved_config.yaml").read_text(encoding="utf-8")
     )
     origin, horizon = config["origin"], config["horizon"]
-    if summary["series"] != 30490 or horizon != 28:
-        raise ValueError("Official M5 scoring requires all 30490 series and 28 days")
+    if summary["series"] != 30490 or origin != 1913 or horizon != 7:
+        raise ValueError("M5 scoring requires all 30490 series, origin=1913 and 7 days")
     if "target" not in config.get("fields", ["target"]):
         raise ValueError("Scoring requires target predictions")
     if (
@@ -208,13 +208,6 @@ def run(source, run_dir, output, *, summary_only=False):
         if array.shape != (30490, len(summary["quantiles"]), horizon):
             raise ValueError(f"Invalid forecast array: {name}")
         forecasts[name] = array[:, median, :]
-    if "seasonal_naive_7" in summary:
-        forecasts["seasonal_naive_7"] = np.load(
-            run_dir / "seasonal_naive.npy", mmap_mode="r"
-        )
-        np.testing.assert_array_equal(
-            forecasts["seasonal_naive_7"], np.tile(history[:, -7:], (1, 4))
-        )
     results, details = score_hierarchy(
         metadata, history, target, forecasts, revenue, require_full=True
     )
@@ -223,6 +216,7 @@ def run(source, run_dir, output, *, summary_only=False):
         "forecast_run": str(run_dir.resolve()),
         "origin": origin,
         "horizon": horizon,
+        "evaluation_protocol": "custom_7_day",
         "forecast_start": date,
         "point_forecast": "bottom-level q0.5, summed bottom-up; no clipping or rounding",
         "scale_history": [1, origin],

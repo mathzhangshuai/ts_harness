@@ -25,7 +25,14 @@ class TrainingChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_store(
-                [{"item_id": "a", "start": "2011-01-29", "target": np.arange(1913)}],
+                [
+                    {
+                        "item_id": str(i),
+                        "start": "2011-01-29",
+                        "target": np.arange(1913),
+                    }
+                    for i in range(3)
+                ],
                 root / "store",
             )
             args = parse_args(
@@ -53,12 +60,16 @@ class TrainingChecks(unittest.TestCase):
             ):
                 report = run(args)
             self.assertEqual(report["fields"], ["target"])
-            self.assertEqual(report["training_windows"], 1374)
+            self.assertEqual(report["training_windows"], 375)
+            self.assertEqual(report["train_start"], 1734)
+            self.assertEqual(report["train_days"], 180)
+            self.assertEqual((report["context"], report["horizon"]), (49, 7))
+            self.assertEqual(report["example_label_shapes"], [[1, 7], [1, 7]])
             self.assertEqual(report["epochs"], 6)
             self.assertEqual(report["batch_size"], 256)
             self.assertEqual(args.workers, 12)
-            self.assertEqual(report["single_device_batches_per_epoch"], 5)
-            self.assertEqual(report["single_device_total_steps"], 30)
+            self.assertEqual(report["single_device_batches_per_epoch"], 1)
+            self.assertEqual(report["single_device_total_steps"], 6)
             self.assertTrue(report["drop_last"])
             self.assertTrue(report["model_settings"]["use_arcsinh"])
             self.assertEqual(
@@ -119,12 +130,18 @@ class TrainingChecks(unittest.TestCase):
 
     def test_lightning_settings_and_loss_delegation_without_training(self):
         args = parse_args(["--epochs", "2", "--devices", "2", "--dry-run"])
-        with patch("tszoo.training.trainer.L.Trainer") as trainer:
+        with (
+            patch("tszoo.training.trainer.L.Trainer") as trainer,
+            patch("torch.set_float32_matmul_precision") as matmul,
+        ):
             make_trainer(args)
+        matmul.assert_called_once_with("medium")
         settings = trainer.call_args.kwargs
         self.assertEqual(settings["accelerator"], "gpu")
         self.assertEqual(settings["devices"], 2)
         self.assertEqual(settings["max_epochs"], 2)
+        self.assertEqual(settings["precision"], "bf16-mixed")
+        self.assertEqual(parse_args(["--precision", "16-mixed"]).precision, "16-mixed")
         self.assertTrue(settings["enable_progress_bar"])
         self.assertTrue(settings["use_distributed_sampler"])
         model = load_model(DUMMY).eval()
@@ -163,6 +180,8 @@ class TrainingChecks(unittest.TestCase):
                     "7",
                     "--train-end",
                     "40",
+                    "--train-days",
+                    "40",
                     "--batch-size",
                     "8",
                 ]
@@ -176,6 +195,18 @@ class TrainingChecks(unittest.TestCase):
             trainer.fit.assert_called_once()
             self.assertFalse((root / "out").exists())
 
+    def test_bfloat16_forward_has_finite_valid_point_loss_without_training(self):
+        model = load_model(DUMMY).eval()
+        window = {
+            "target": torch.arange(49).float()[None],
+            "future_target": torch.arange(7).float()[None],
+        }
+        with torch.no_grad(), torch.autocast("cpu", dtype=torch.bfloat16):
+            result = model([window], 7)
+        self.assertTrue(torch.isfinite(result["loss"]))
+        self.assertTrue(torch.isfinite(result["quantile_preds"]).all())
+        self.assertTrue(all(parameter.grad is None for parameter in model.parameters()))
+
     def test_nonpositive_epochs_and_old_steps_are_rejected(self):
         for option in (["--epochs", "0"], ["--epochs", "-1"], ["--steps", "1000"]):
             with (
@@ -183,3 +214,12 @@ class TrainingChecks(unittest.TestCase):
                 self.assertRaises(SystemExit),
             ):
                 parse_args(option)
+
+    def test_invalid_training_spans_are_rejected(self):
+        for days in (0, 55, 1914):
+            with (
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                parse_args(["--train-days", str(days)])
+        self.assertEqual(parse_args(["--train-days", "56"]).train_days, 56)

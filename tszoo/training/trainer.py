@@ -30,6 +30,7 @@ def parse_args(argv=None):
         "context",
         "horizon",
         "train_end",
+        "train_days",
         "epochs",
         "batch_size",
         "workers",
@@ -44,6 +45,7 @@ def parse_args(argv=None):
         help="Positive device count or auto",
     )
     parser.add_argument("--strategy", choices=("auto", "ddp"))
+    parser.add_argument("--precision", choices=("bf16-mixed", "16-mixed", "32-true"))
     preliminary, _ = parser.parse_known_args(argv)
     try:
         parser.set_defaults(**load_training_config(preliminary.config))
@@ -66,7 +68,9 @@ def parse_args(argv=None):
     ):
         parser.error("Invalid training parameters")
     if args.train_end > 1913:
-        parser.error("M5 training must not read the d_1914-d_1941 holdout")
+        parser.error("M5 training must not read beyond d_1913")
+    if not args.context + args.horizon <= args.train_days <= args.train_end:
+        parser.error("Require context + horizon <= train_days <= train_end")
     if args.device not in ("cuda", "cpu", "auto"):
         parser.error("Training device must be cuda, cpu or auto")
     if args.devices != "auto" and args.devices < 1:
@@ -140,6 +144,7 @@ class ForecastData(L.LightningDataModule):
 
 
 def make_trainer(args):
+    torch.set_float32_matmul_precision("medium")
     return L.Trainer(
         accelerator="gpu" if args.device == "cuda" else args.device,
         devices=args.devices,
@@ -147,7 +152,7 @@ def make_trainer(args):
         max_epochs=args.epochs,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
-        precision="32-true",
+        precision=args.precision,
         enable_progress_bar=True,
         enable_checkpointing=False,
         logger=False,
@@ -157,6 +162,8 @@ def make_trainer(args):
 
 
 def run(args):
+    if not args.context + args.horizon <= args.train_days <= args.train_end:
+        raise ValueError("Require context + horizon <= train_days <= train_end")
     root = Path(args.output)
     if root.exists():
         raise FileExistsError(root)
@@ -165,6 +172,8 @@ def run(args):
         args.store,
         args.context,
         args.horizon,
+        # Dataset start is the first forecast origin, not the first history day.
+        start=args.train_end - args.train_days + args.context,
         end=args.train_end,
         features=args.features,
         source=args.source,
@@ -198,6 +207,10 @@ def run(args):
                 "series": len(dataset.manifest["series"]),
                 "training_windows": len(dataset),
                 "train_end": args.train_end,
+                "train_days": args.train_days,
+                "train_start": args.train_end - args.train_days + 1,
+                "context": args.context,
+                "horizon": args.horizon,
                 "epochs": args.epochs,
                 "single_device_batches_per_epoch": len(loader),
                 "single_device_total_steps": args.epochs * len(loader),
@@ -205,6 +218,8 @@ def run(args):
                 "shuffle_block_size": args.shuffle_block_size,
                 "devices": args.devices,
                 "strategy": args.strategy,
+                "precision": args.precision,
+                "float32_matmul_precision": "medium",
                 "model_settings": {
                     "use_arcsinh": model.backbone.config.use_arcsinh,
                     "use_reg_token": model.backbone.config.use_reg_token,
@@ -261,6 +276,7 @@ def run(args):
                     },
                     "lightning": L.__version__,
                     "torch": torch.__version__,
+                    "float32_matmul_precision": torch.get_float32_matmul_precision(),
                     "validation": "No validation or test-based selection",
                 },
                 indent=2,

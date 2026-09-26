@@ -36,12 +36,12 @@ python run.py evaluate --output runs/m5-baseline-rerun
 
 下载默认使用 `configs/baseline.yaml`，可加 `--models chronos2_small` 只下载 Small。准备命令默认生成训练、评测两个独立存储；已有完整存储复用，不覆盖。
 
-训练默认使用 `configs/train_small.yaml`：只输入销量，512 天历史、28 天标签，训练截止 d_1913。执行训练前请阅读 [训练流程](docs/m5-small-training.md)。
+训练默认使用 `configs/train_small.yaml`：只输入销量，使用 d_1734–d_1913 共 180 天，49 天历史、7 天标签。执行训练前请阅读 [训练流程](docs/m5-small-training.md)。
 
 评测原始权重与微调模型使用同一个入口：
 
 ```bash
-python run.py evaluate --checkpoint runs/m5-small-target-train --output runs/m5-small-target-eval
+python run.py evaluate --checkpoint runs/m5-small-target-train --context 49 --horizon 7 --output runs/m5-small-target-eval-7d
 ```
 
 只输出 1-WAPE、MAE、WRMSSE。评测输出目录不能已存在。`baseline` 保留为 `evaluate` 的命令别名；独立 `wrmsse` 命令仍能读取既有预测产物。

@@ -16,8 +16,8 @@ def run(config):
     root = Path(config["output"])
     if root.exists():
         raise FileExistsError(root)
-    if (config["origin"], config["horizon"]) != (1913, 28):
-        raise ValueError("M5 evaluation requires origin=1913 and horizon=28")
+    if config["origin"] != 1913 or config["horizon"] != 7:
+        raise ValueError("M5 evaluation requires origin=1913 and horizon=7")
     ensure_resources(config)
     torch.set_num_threads(2)
     torch.manual_seed(0)
@@ -42,7 +42,8 @@ def run(config):
     rows = [
         "# M5 evaluation",
         "",
-        f"30,490 series; d_1914-d_1941; {config['context']} historical days; q0.5; no postprocessing.",
+        f"30,490 series; d_1914-d_{1913 + config['horizon']}; {config['context']} historical days; q0.5; no postprocessing.",
+        "7-day results are a custom backtest.",
         "WRMSSE: 12 levels, d_1-d_1913 scale history and trailing 28-day revenue weights.",
         "",
         "| Model | 1-WAPE | MAE | WRMSSE |",
@@ -68,6 +69,8 @@ def main():
     parser.add_argument("--output")
     parser.add_argument("--device")
     parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--context", type=int)
+    parser.add_argument("--horizon", type=int, choices=(7,))
     args = parser.parse_args()
     config = load_config(args.config)
     if args.checkpoint:
@@ -89,11 +92,13 @@ def main():
         config["models"] = {name: config["models"][name] for name in args.models}
     if args.output:
         config["output"] = str(Path(args.output).resolve())
-    for key in ("device", "batch_size"):
+    for key in ("device", "batch_size", "context", "horizon"):
         if getattr(args, key) is not None:
             config[key] = getattr(args, key)
     if config["batch_size"] < 1:
         parser.error("batch-size must be positive")
+    if not 1 <= config["context"] <= config["origin"]:
+        parser.error("context must be positive and not exceed origin")
     run(config)
 
 

@@ -12,8 +12,9 @@ YAML and choose a new `training.output`. For example:
 data:
   source: ../datasets/m5
   store: ../datasets/processed/m5-train-target
-  context: 512
-  horizon: 28
+  context: 49
+  horizon: 7
+  train_days: 180
   train_end: 1913
   features:
     target: [sales]

@@ -156,9 +156,9 @@ def load_training_config(path):
     for section, names in SECTIONS.items():
         content = config[section]
         optional = (
-            {"features", "source"}
+            {"features", "source", "train_days"}
             if section == "data"
-            else {"devices", "strategy", "shuffle_block_size"}
+            else {"devices", "strategy", "shuffle_block_size", "precision"}
             if section == "training"
             else {"attention"}
         )
@@ -170,7 +170,11 @@ def load_training_config(path):
     values["source"] = _path(path, values.get("source", "../datasets/m5"))
     values.setdefault("devices", "auto")
     values.setdefault("strategy", "auto")
+    values.setdefault("precision", "bf16-mixed")
+    if values["precision"] not in ("bf16-mixed", "16-mixed", "32-true"):
+        raise ValueError("precision must be bf16-mixed, 16-mixed or 32-true")
     values.setdefault("shuffle_block_size", 65536)
+    values.setdefault("train_days", values["train_end"])
     if values["devices"] != "auto" and (
         type(values["devices"]) is not int or values["devices"] < 1
     ):
@@ -185,6 +189,7 @@ def load_training_config(path):
             "context",
             "horizon",
             "train_end",
+            "train_days",
             "epochs",
             "batch_size",
             "shuffle_block_size",
@@ -211,10 +216,13 @@ def training_config(args):
         section: {name: getattr(args, name) for name in names}
         for section, names in SECTIONS.items()
     }
-    result["data"].update(features=args.features, source=args.source)
+    result["data"].update(
+        features=args.features, source=args.source, train_days=args.train_days
+    )
     result["training"].update(
         devices=args.devices,
         strategy=args.strategy,
+        precision=args.precision,
         shuffle_block_size=args.shuffle_block_size,
     )
     result["model"]["attention"] = args.attention

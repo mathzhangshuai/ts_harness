@@ -8,8 +8,8 @@ features:
   past_feat_dynamic_cat: []
   past_feat_dynamic_real: []
 output: ../runs/m5-baseline
-context: 512
-horizon: 28
+context: 49
+horizon: 7
 origin: 1913
 batch_size: 80
 device: cuda

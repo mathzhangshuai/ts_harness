@@ -11,6 +11,28 @@ from tszoo.data.prepare import m5_entries, prepare_store
 
 
 class DatasetTests(unittest.TestCase):
+    def test_recent_training_span_bounds_history_and_labels(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "store"
+            write_store(
+                [{"item_id": "a", "start": "2011-01-29", "target": np.arange(1, 1942)}],
+                root,
+            )
+            data = MemmapWindows(root, 49, 7, start=1913 - 180 + 49, end=1913)
+            try:
+                self.assertEqual(len(data), 125)
+                for index in range(len(data)):
+                    np.testing.assert_array_equal(
+                        data[index]["target"], [np.arange(1734 + index, 1783 + index)]
+                    )
+                    np.testing.assert_array_equal(
+                        data[index]["future_target"],
+                        [np.arange(1783 + index, 1790 + index)],
+                    )
+                self.assertEqual(data[len(data) - 1]["future_target"][0, -1], 1913)
+            finally:
+                data.close()
+
     def test_training_boundary_and_prediction_label_isolation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "store"
@@ -18,28 +40,28 @@ class DatasetTests(unittest.TestCase):
                 [{"item_id": "a", "start": "2011-01-29", "target": np.arange(1, 1942)}],
                 root,
             )
-            train = MemmapWindows(root, 512, 28, end=1913)
+            train = MemmapWindows(root, 49, 7, end=1913)
             try:
-                self.assertEqual(len(train), 1374)
-                np.testing.assert_array_equal(train[0]["target"], [np.arange(1, 513)])
+                self.assertEqual(len(train), 1858)
+                np.testing.assert_array_equal(train[0]["target"], [np.arange(1, 50)])
                 np.testing.assert_array_equal(
-                    train[len(train) - 1]["future_target"], [np.arange(1886, 1914)]
+                    train[len(train) - 1]["future_target"], [np.arange(1907, 1914)]
                 )
                 self.assertEqual(
-                    str(train[len(train) - 1]["forecast_start"] + 27), "2016-04-24"
+                    str(train[len(train) - 1]["forecast_start"] + 6), "2016-04-24"
                 )
             finally:
                 train.close()
-            predict = MemmapWindows(root, 512, 28, mode="predict", end=1913)
+            predict = MemmapWindows(root, 49, 7, mode="predict", end=1913)
             try:
                 self.assertNotIn("future_target", predict[0])
                 np.testing.assert_array_equal(
-                    predict[0]["target"], [np.arange(1402, 1914)]
+                    predict[0]["target"], [np.arange(1865, 1914)]
                 )
             finally:
                 predict.close()
             with self.assertRaises(ValueError):
-                MemmapWindows(root, 512, 28, end=1942)
+                MemmapWindows(root, 49, 7, end=1942)
 
     def test_prepare_reads_validation_only_and_reuses_existing_store(self):
         with tempfile.TemporaryDirectory() as temporary:
