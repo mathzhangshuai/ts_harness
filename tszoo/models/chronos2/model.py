@@ -181,13 +181,15 @@ class SplitChronos2(nn.Module):
                 label, (0, normalized.shape[-1] - prediction_length), value=float("nan")
             )
             valid = torch.isfinite(label)
+            if not valid.any():
+                raise ValueError("No observed target labels in batch")
             error = label.nan_to_num()[:, None] - normalized.float()
             q = self.backbone.quantiles[None, :, None]
             loss = 2 * torch.abs(
                 error * ((label.nan_to_num()[:, None] <= normalized).float() - q)
             )
-            # Match upstream: padded horizon mean, quantile sum, then batch mean.
-            result["loss"] = (loss * valid[:, None]).mean(-1).sum(-1).mean()
+            # Sum quantiles; only observed target points contribute to the denominator.
+            result["loss"] = loss.masked_fill(~valid[:, None], 0).sum() / valid.sum()
         return result
 
     def save_local(self, directory):

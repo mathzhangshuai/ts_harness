@@ -17,9 +17,12 @@ No parameter updates were performed during verification.
   Quantile loss is masked, averaged over the padded horizon, summed over
   quantiles, and averaged over target channels/batch. Missing targets and
   padded positions contribute zero but remain in the averaging denominator.
-- Previous local loss divided by the number of observed labels instead. This
-  differed even with complete 28-day labels because output patches cover 32 days.
-  The local loss now follows upstream reduction. No existing predictions change.
+- The local loss deliberately divides the sum over all observed target points
+  and quantiles by the observed target count in the batch, as requested.
+  Padding and missing labels are excluded from both numerator and denominator.
+  A completely unobserved batch raises an error. For one complete 28-day target,
+  the denominator is 28, not the padded length of 32. This reduction differs
+  from upstream; normalization and the pointwise quantile formula are unchanged.
 - Only sales channels are prediction targets in this project. Covariate channels
   are model inputs and never receive a forecasting loss or future sales labels.
 - The signed-log projection of optional static real attributes is a local
@@ -68,8 +71,10 @@ Evaluation remains a single-process complete traversal, retaining partial batche
 
 ## Verification
 
-Tests compare normalization, predictions and losses directly with the reference
-at horizons 7, 16 and 28, including missing labels. Attention tests check blocked
+Tests compare normalization and predictions directly with the reference and
+check loss after converting its denominator to observed target counts at
+horizons 7, 16 and 28, including missing labels. Additional tests verify that
+padding and entirely missing target series do not dilute loss. Attention tests check blocked
 target-to-covariate information flow, group isolation, both computation modes,
 cross-series grouping and checkpoint persistence. Distributed sampling is tested
 without starting training. Actual multi-GPU training still requires cloud validation.

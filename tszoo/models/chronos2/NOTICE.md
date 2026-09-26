@@ -38,3 +38,8 @@ series/batch grouping, preserved saved attention settings, and aligned target
 quantile-loss reduction with upstream's padded-horizon mean. Arcsinh normalization
 continues to follow the pretrained configuration. Named categorical/static
 adapters are local extensions and are not claimed to be upstream features.
+
+Loss policy update (2026-09-26): at the user's request, the local quantile loss
+is normalized by the observed target count, excluding missing labels and padding.
+This intentionally differs from upstream's padded-horizon reduction; the
+pointwise loss formula and pretrained normalization remain unchanged.

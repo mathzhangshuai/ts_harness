@@ -38,7 +38,7 @@ CLI 可覆盖 `--epochs 3 --batch-size 4 --lr 0.000005 --output runs/another-run
 
 `training.device: cuda`、`devices: auto`、`strategy: auto` 默认使用所有可见 GPU，由 Lightning 选择单卡或 DDP。可设置 `devices: 2`、`strategy: ddp`，或通过 `--devices 2 --strategy ddp` 覆盖。CPU 使用 `device: cpu`。仍使用本地改编的 Chronos-2 主干，而非官方 Pipeline.fit。
 
-训练损失与本地 Chronos-2 参考实现对齐：`2 * abs(error * (I[target <= prediction] - q))`，屏蔽缺失标签和补齐位置，然后沿补齐后的预测长度取均值、沿分位数求和、沿 batch 取均值。28 天预测补齐到 32 天，因此分母使用 32，而不是有效目标点数。目标复用历史窗口的归一化统计量，并沿用权重配置中的 arcsinh 变换。MAE、1-WAPE、WRMSSE 仅用于评测。
+训练损失使用参考实现的逐点分位数公式：`2 * abs(error * (I[target <= prediction] - q))`，在当前 batch 中对所有有效目标点、所有分位数求和，再除以有效目标点数。补齐位置和缺失标签既不贡献损失，也不计入分母；单条完整 28 天标签的分母为 28，而不是补齐后的 32。全 batch 没有有效标签时报错，避免无监督信号的优化步骤。这是明确区别于参考实现的归约方式。目标复用历史窗口的归一化统计量，并沿用权重配置中的 arcsinh 变换。MAE、1-WAPE、WRMSSE 仅用于评测。
 
 `model.attention` 配置变量注意力：`variate_attention: grouped` 为按组计算，`global_masked` 为完整矩阵加分组掩码；两者保持相同的组隔离语义。`variate_attention_policy: target_aware` 禁止协变量读取目标，`bidirectional` 允许双向读取。`variate_grouping: series` 隔离不同序列，`batch` 允许同批序列互相读取。默认启用 grouped、target_aware、series。保存并恢复这些设置；推理不会再强制改为双向。详见[参考实现核查](m5-chronos-audit.md)。
 

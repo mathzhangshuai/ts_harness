@@ -66,7 +66,7 @@ class ModelTests(unittest.TestCase):
             actual = self.model(self.windows, 7)["quantile_preds"][:, 0]
         torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-5)
 
-    def test_upstream_normalization_and_loss_including_padding_and_missing_labels(self):
+    def test_upstream_normalization_and_valid_point_loss_rescaling(self):
         if not REFERENCE.exists():
             self.skipTest("Optional upstream source absent")
         from upstream_reference import load_upstream
@@ -100,9 +100,17 @@ class ModelTests(unittest.TestCase):
                         num_output_patches=(horizon + 15) // 16,
                     )
                     actual_output = self.model(windows, horizon)
+                    padded_points = (
+                        labels.shape[0] * expected_output.quantile_preds.shape[-1]
+                    )
+                    expected_loss = (
+                        expected_output.loss
+                        * padded_points
+                        / torch.isfinite(labels).sum()
+                    )
                     torch.testing.assert_close(
                         actual_output["loss"],
-                        expected_output.loss,
+                        expected_loss,
                         rtol=1e-5,
                         atol=1e-5,
                     )
@@ -112,6 +120,24 @@ class ModelTests(unittest.TestCase):
                         rtol=1e-5,
                         atol=1e-5,
                     )
+
+    def test_padding_and_missing_only_series_do_not_dilute_loss(self):
+        labels = torch.arange(28).float()[None]
+        labels[:, ::5] = float("nan")
+        window = dict(self.windows[0], future_target=labels)
+        padded = dict(
+            window,
+            future_target=torch.cat([labels, torch.full((1, 4), float("nan"))], -1),
+        )
+        missing = dict(self.windows[1], future_target=torch.full((1, 28), float("nan")))
+        with torch.no_grad():
+            expected = self.model([window], 28)["loss"]
+            torch.testing.assert_close(self.model([padded], 32)["loss"], expected)
+            torch.testing.assert_close(
+                self.model([window, missing], 28)["loss"], expected
+            )
+            with self.assertRaisesRegex(ValueError, "No observed target labels"):
+                self.model([missing], 28)
 
     def test_attention_policy_and_grouped_engine(self):
         groups = torch.tensor([0, 0, 0, 1])

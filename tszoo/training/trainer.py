@@ -207,7 +207,7 @@ def run(args):
                     "variate_attention": model.backbone.config.variate_attention,
                     "variate_attention_policy": model.backbone.config.variate_attention_policy,
                     "variate_grouping": model.backbone.config.variate_grouping,
-                    "loss": "upstream_padded_horizon_quantile_loss",
+                    "loss": "valid_target_mean_quantile_loss",
                 },
                 "batch_size": args.batch_size,
                 "lr": args.lr,
