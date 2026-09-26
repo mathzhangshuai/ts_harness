@@ -9,8 +9,9 @@ from unittest.mock import patch
 
 import yaml
 from fixtures import PROJECT
-from tszoo.config.m5 import load_config
-from tszoo.utils import resources
+
+from tszoo.config import load_config
+from tszoo.data import download as resources
 
 
 class ResourceTests(unittest.TestCase):
@@ -104,7 +105,7 @@ class ResourceTests(unittest.TestCase):
                 }
             ]
         }
-        (self.root / "data/m5_manifest.json").write_text(json.dumps(manifest))
+        (self.root / "data/manifest.json").write_text(json.dumps(manifest))
         spec = {
             "repo_id": "example/selected",
             "revision": "a" * 40,
@@ -138,7 +139,7 @@ class ResourceTests(unittest.TestCase):
 
     def test_strict_yaml_sources_and_paths(self):
         path = self.root / "run.yaml"
-        raw = yaml.safe_load((PROJECT / "config/m5-zero-shot.yaml").read_text())
+        raw = yaml.safe_load((PROJECT / "configs/baseline.yaml").read_text())
         path.write_text(yaml.safe_dump(raw))
         result = load_config(path)
         self.assertEqual(
@@ -161,6 +162,7 @@ class ResourceTests(unittest.TestCase):
 
     def test_target_store_is_prepared_without_static_features(self):
         import pandas as pd
+
         from tszoo.data import MemmapWindows
 
         source = self.root / "raw"
@@ -182,13 +184,13 @@ class ResourceTests(unittest.TestCase):
         }
         pd.DataFrame([row]).to_csv(source / "sales_train_evaluation.csv", index=False)
         store = self.root / "store"
-        self.assertTrue(resources.prepare_target_store(source, store))
-        self.assertFalse(resources.prepare_target_store(source, store))
+        self.assertTrue(resources.prepare_store(source, store, reuse=True))
+        self.assertFalse(resources.prepare_store(source, store, reuse=True))
         manifest = json.loads((store / "manifest.json").read_text())
         self.assertEqual(set(manifest["fields"]), {"target"})
         data = MemmapWindows(store, 7, 3, mode="predict", end=10)
         self.assertEqual(data[0]["target"].shape, (1, 7))
-        data._maps.clear()
+        data.close()
 
 
 if __name__ == "__main__":

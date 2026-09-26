@@ -7,8 +7,6 @@ venv/
 runs/
 datasets/*
 !datasets/README.md
-!datasets/manifest.json
-!datasets/parquet_validation.json
 checkpoints/
 weights/
 *.safetensors

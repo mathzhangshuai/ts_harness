@@ -1,6 +1,7 @@
-"""Chronos-2 adaptation without the chronos or transformers packages."""
+"""Chronos-2 pretrained and target-only fine-tuned models."""
 
-from .backbone import Chronos2Backbone, CoreConfig
-from .model import FeatureSchema, SplitChronos2
+from .backbone import Chronos2Backbone
+from .config import CoreConfig
+from .model import SplitChronos2, load_model
 
-__all__ = ["Chronos2Backbone", "CoreConfig", "FeatureSchema", "SplitChronos2"]
+__all__ = ["Chronos2Backbone", "CoreConfig", "SplitChronos2", "load_model"]

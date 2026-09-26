@@ -5,7 +5,7 @@
 - [当前基线与指标口径](tszoo/docs/m5-zero-shot.md)
 - [Chronos-2-small 仅目标变量训练](tszoo/docs/m5-small-training.md)
 - [GitHub 与线上环境](tszoo/docs/github-workflow.md)
-- [配置说明](tszoo/config/README.md)
+- [项目目录与命令](tszoo/README.md)
 
 Git 仅管理源码、配置、测试、文档及数据下载校验清单。原始数据、模型权重、预测数组、运行输出和本地依赖不上传。
 

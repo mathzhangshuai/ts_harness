@@ -4,10 +4,11 @@ import argparse
 import hashlib
 import json
 import re
-import tempfile
 from pathlib import Path
 
 import requests
+
+from .prepare import prepare_store
 
 ROOT = Path(__file__).resolve().parents[1]
 MIRROR = "https://hf-mirror.com"
@@ -77,7 +78,7 @@ def download_file(url, path, expected, size=None):
 
 
 def ensure_m5(directory):
-    manifest = json.loads((ROOT / "data/m5_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((ROOT / "data/manifest.json").read_text(encoding="utf-8"))
     downloaded = 0
     for entry in manifest["files"]:
         downloaded += download_file(
@@ -107,35 +108,18 @@ def ensure_checkpoint(path, source=None):
     return downloaded
 
 
-def prepare_target_store(source, output):
-    from ..data.prepare import Categories, m5_entries
-    from ..data.storage import write_store
-
-    output = Path(output)
-    if output.exists():
-        if not (output / "manifest.json").is_file():
-            raise ValueError(f"Incomplete processed store: {output}")
-        return False
-    output.parent.mkdir(parents=True, exist_ok=True)
-    # Build beside the destination and publish the complete store atomically.
-    with tempfile.TemporaryDirectory(
-        prefix=".m5-build-", dir=output.parent
-    ) as temporary:
-        staging = Path(temporary) / "store"
-        entries = (
-            {key: entry[key] for key in ("item_id", "start", "target")}
-            for entry in m5_entries(source, Categories())
-        )
-        write_store(entries, staging, "D")
-        staging.rename(output)
-    return True
-
-
 def ensure_resources(config, prepare=True):
     dataset = config.get("dataset")
     dataset_downloads = ensure_m5(dataset["path"]) if dataset else 0
     model_downloads = {}
     for name, path in config["models"].items():
+        if config.get("model_formats", {}).get(name) == "finetuned":
+            if not all(
+                (Path(path) / file).is_file() for file in ("config.json", "model.pt")
+            ):
+                raise FileNotFoundError(f"Incomplete fine-tuned checkpoint: {path}")
+            model_downloads[name] = 0
+            continue
         model_downloads[name] = ensure_checkpoint(
             path, config.get("model_sources", {}).get(name)
         )
@@ -145,11 +129,7 @@ def ensure_resources(config, prepare=True):
             raise FileNotFoundError(
                 "Processed store absent and no M5 dataset configured"
             )
-        if config.get("fields", ["target"]) != ["target"]:
-            raise ValueError(
-                "Automatic preparation supports target-only M5; prepare covariates explicitly"
-            )
-        prepared = prepare_target_store(dataset["path"], config["store"])
+        prepared = prepare_store(dataset["path"], config["store"])
     result = {
         "dataset_files_downloaded": dataset_downloads,
         "model_files_downloaded": model_downloads,
@@ -160,10 +140,10 @@ def ensure_resources(config, prepare=True):
 
 
 def main():
-    from ..config.m5 import load_config
+    from ..config import load_config
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default=str(ROOT / "config/m5-zero-shot.yaml"))
+    parser.add_argument("--config", default=str(ROOT / "configs/baseline.yaml"))
     parser.add_argument("--models", nargs="+")
     args = parser.parse_args()
     config = load_config(args.config)

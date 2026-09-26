@@ -24,6 +24,11 @@ The optional target-aware query/key visibility rule follows TiRex-2's
 The local adaptation does not claim to implement every upstream pipeline option.
 
 Layout refactor (2026-09-26): common attention, normalization and feed-forward
-layers now live in `tszoo/layers/`; their source attribution and Apache-2.0
+layers now live in `tszoo/models/chronos2/layers/`; their source attribution and Apache-2.0
 license are retained here. Constructors take explicit dimensions rather than
 a model configuration object. Checkpoint parameter names and math are unchanged.
+
+M5 simplification (2026-09-26): the outer model accepts only one target per
+series; categorical/static adapters were removed. Backbone parameters, patch
+math, and target quantile loss are preserved. Existing target-only checkpoints
+remain readable.

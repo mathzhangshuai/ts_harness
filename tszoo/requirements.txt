@@ -15,9 +15,6 @@ pandas==2.3.3
 ruff==0.16.9
 requests==2.34.2
 
-# Parquet column selection and batch reading.
-pyarrow==25.0.1
-
 # Read local pretrained checkpoint tensors without installing Chronos.
 safetensors==0.6.2
 

@@ -1,47 +1,55 @@
 # tszoo
 
-Chronos-2-small 仅目标变量微调见 [云端训练流程](docs/m5-small-training.md)，配置为 `config/m5-small-target-train.yaml`。
+M5 仅目标变量预测：Chronos-2-small、Chronos-2 零样本基线，以及 Small 全参数微调。没有 `src/` 嵌套或通用数据集框架。
 
-线上环境通过 GitHub 克隆，参见 [GitHub 与线上环境](docs/github-workflow.md)。数据、权重及运行产物不上传；具体训练方案后续确定。
-
-模型探索实现集中在以下五类目录：
+## 目录
 
 ```text
 tszoo/
-  utils/              # 训练、推理、评分、指标与结果文件
-  data/               # 字段契约、内存映射、数据转换
-  config/             # 配置解析、YAML、字段映射 JSON
-  layers/             # 通用 Attention、RMSNorm、MLP、ResidualBlock
-  models/
-    chronos2/         # 模型配置、编码器、预测头、特征适配与许可证
+  run.py                   命令入口
+  config.py                配置解析与校验
+  configs/                 baseline.yaml、train_small.yaml
+  data/                    M5 下载、准备、窗口与 manifest.json
+  models/chronos2/         主干、目标模型、网络层、许可证
+  training/trainer.py      全参数微调与 dry-run
+  evaluation/              预测、MAE/1-WAPE、WRMSSE、评测流程
+  tests/                   无参数更新的回归测试
+  docs/                    运行说明与当前基线
+  datasets/                本地原始及预处理数据
+  .model-cache/            本地预训练权重
+  runs/                    本地训练与评测产物
 ```
 
-通用层接受显式维度和超参数，不依赖具体模型配置。时序分组、目标注意力策略、
-patch 编码及分位数预测头保留在模型目录。参数名称与计算顺序保持不变。
+## 使用
 
-`utils/metrics.py` 和 `utils/io.py` 可独立导入，不加载 PyTorch；
-配置解析在 `config/m5.py` 和 `config/training.py`。
+Python 3.11；按 [云端环境说明](docs/github-workflow.md) 安装依赖。在本目录运行：
 
-从 `tszoo` 目录执行：
-
-```powershell
-python run.py baseline
-python run.py test
+```bash
+python run.py download
+python run.py prepare
+python run.py train --dry-run
+python run.py train
+python run.py evaluate --output runs/m5-baseline-rerun
 ```
 
-YAML 中的相对路径以配置文件所在目录为基准。数据、权重、运行产物、文档、测试及依赖声明均在本目录内。
-配置详情见 [config/README.md](config/README.md)，结果见 [文档索引](docs/README.md)。
+下载默认使用 `configs/baseline.yaml`，可加 `--models chronos2_small` 只下载 Small。准备命令默认生成训练、评测两个独立存储；已有完整存储复用，不覆盖。
 
-旧兼容入口和重复实现已删除。`run.py` 支持目录直接运行，自动加载本目录的 `.experiment-deps`；不依赖外层项目，也不安装 Chronos 包。
+训练默认使用 `configs/train_small.yaml`：只输入销量，512 天历史、28 天标签，训练截止 d_1913。执行训练前请阅读 [训练流程](docs/m5-small-training.md)。
 
-新环境使用 Python 3.11，并执行 `python -m pip install -r requirements.txt`。当前 requirements 固定 CUDA 12.1 的 PyTorch；其他硬件需选择相应 PyTorch 构建。也可使用 `python -m pip install -e .` 安装本项目。
+评测原始权重与微调模型使用同一个入口：
 
-`download` 校验并补齐 M5 原始文件及 YAML 指定的权重；权重固定从 `https://hf-mirror.com` 下载，并按固定 revision 和 SHA-256 校验。`evaluate` 同样检查资源，并在缺少目标变量存储时自动生成 memmap。已有损坏文件会报错，不自动覆盖。`--models chronos2_small` 可只选择一个权重。
+```bash
+python run.py evaluate --checkpoint runs/m5-small-target-train --output runs/m5-small-target-eval
+```
 
-训练入口为 `python run.py train --help`，需要预先准备对应字段存储；自动数据准备当前仅支持 M5 目标变量。可选的 `python run.py reference` 需要外部参考源码和额外依赖；正常训练和推理不依赖 `reference_models`。
+只输出 1-WAPE、MAE、WRMSSE。评测输出目录不能已存在。`baseline` 保留为 `evaluate` 的命令别名；独立 `wrmsse` 命令仍能读取既有预测产物。
 
-## 验证记录
+## 兼容与验证
 
-2026-09-26：`python run.py test` 共 51 项通过，包含脱离父目录后的复制运行、下载校验与续传、字段隔离、注意力和评分测试。基线相关代码的 Ruff 检查与格式检查通过。
+- 原始权重、M5 文件和当前基线结果保留原位置。
+- 旧的仅目标变量 memmap 和 `model.pt` 检查点可继续读取。
+- 多数据集、协变量 CLI、旧 `config/` 路径和 `utils/` 导入不再支持；使用本页新入口。
+- `python run.py test` 只执行数据、配置、推理、评分和 dry-run 检查，不执行优化器更新。
+- 可选的原版数值对照测试使用外层参考源码；没有参考源码时跳过该项。
 
-历史实验输出已清理。当前入口 `python run.py baseline` 使用 `config/m5-baseline.yaml`，仅重新评测 Chronos-2-small 与 Chronos-2，输出 1-WAPE、MAE、WRMSSE；结果保存在 `runs/m5-baseline/`，不执行训练。旧的通用评测入口仍可使用。
+[当前基线](docs/m5-zero-shot.md) · [指标口径](docs/m5-wrmsse.md) · [术语](CONTEXT.md)

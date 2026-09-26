@@ -5,9 +5,6 @@ horizon: 28
 origin: 1913
 batch_size: 16
 device: cuda
-variate_attention: grouped
-variate_attention_policy: bidirectional
-quantiles: [0.5]
 models:
   chronos2_small:
     path: ../.model-cache/hub/models--autogluon--chronos-2-small/snapshots/ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a

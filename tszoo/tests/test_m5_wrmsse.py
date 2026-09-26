@@ -2,7 +2,8 @@ import unittest
 
 import numpy as np
 import pandas as pd
-from tszoo.utils.score_m5_wrmsse import rmsse_scale, score_hierarchy, trailing_revenue
+
+from tszoo.evaluation.wrmsse import rmsse_scale, score_hierarchy, trailing_revenue
 
 
 class M5WRMSSETests(unittest.TestCase):

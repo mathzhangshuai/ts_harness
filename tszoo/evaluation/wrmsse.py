@@ -253,7 +253,7 @@ def run(source, run_dir, output, *, summary_only=False):
 
 
 def main():
-    from .resources import ROOT, ensure_m5
+    from ..data.download import ROOT, ensure_m5
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default=str(ROOT / "datasets/m5"))

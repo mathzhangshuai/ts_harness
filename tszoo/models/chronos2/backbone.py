@@ -13,8 +13,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from ...layers import MLP, Attention, ResidualBlock, RMSNorm
 from .config import CoreConfig
+from .layers import MLP, Attention, ResidualBlock, RMSNorm
 
 
 class AttentionLayer(nn.Module):

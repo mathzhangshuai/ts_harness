@@ -18,13 +18,12 @@ sys.modules["tszoo"] = package
 spec.loader.exec_module(package)
 
 COMMANDS = {
-    "baseline": "utils.baseline_m5",
-    "download": "utils.resources",
+    "baseline": "evaluation.evaluate",
+    "download": "data.download",
     "prepare": "data.prepare",
-    "evaluate": "utils.evaluate_m5",
-    "reference": "utils.evaluate_m5_reference",
-    "wrmsse": "utils.score_m5_wrmsse",
-    "train": "utils.train",
+    "evaluate": "evaluation.evaluate",
+    "wrmsse": "evaluation.wrmsse",
+    "train": "training.trainer",
 }
 
 

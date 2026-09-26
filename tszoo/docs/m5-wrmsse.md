@@ -9,4 +9,4 @@
 - 每条序列 `RMSSE = sqrt(mean((prediction - target)^2) / scale)`；WRMSSE 为各层销售额加权 RMSSE 的平均值。
 - 零缩放、正销量缺失价格、标签或序列错位会报错，不静默跳过。
 
-实现见 [score_m5_wrmsse.py](../utils/score_m5_wrmsse.py)。`baseline` 入口自动完成此评分，无需另跑命令。
+实现见 [wrmsse.py](../evaluation/wrmsse.py)。`evaluate` 入口自动完成此评分，无需另跑命令。

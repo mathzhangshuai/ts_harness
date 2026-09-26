@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 from safetensors.torch import save_file
+
 from tszoo.models.chronos2 import Chronos2Backbone, CoreConfig
 
 PROJECT = Path(__file__).resolve().parents[1]
