@@ -5,6 +5,7 @@
 | [项目目录与入口](../README.md) | 代码职责及命令 |
 | [Small 微调](m5-small-training.md) | 云端训练、训练后评测 |
 | [七类变量配置](m5-features.md) | YAML 字段名选择、来源及时间边界 |
+| [参考实现核查](m5-chronos-audit.md) | 目标变换、损失对齐、注意力、Lightning 职责 |
 | [零样本基线](m5-zero-shot.md) | 两个原始权重、当前结果 |
 | [WRMSSE](m5-wrmsse.md) | M5 层级评分口径 |
 | [GitHub 与云端环境](github-workflow.md) | 克隆、依赖和资源管理 |

@@ -163,6 +163,8 @@ class SplitChronos2(nn.Module):
                     raise ValueError("Invalid future_target")
                 labels.append(label)
         groups = torch.tensor(groups, device=device)
+        if self.backbone.config.variate_grouping == "batch":
+            groups = torch.zeros_like(groups)
         target_mask = torch.zeros(cursor, dtype=torch.bool, device=device)
         target_mask[target_indices] = True
         hidden = self.backbone.encoder(
@@ -175,13 +177,17 @@ class SplitChronos2(nn.Module):
         result = {"quantile_preds": prediction[:, None]}
         if labels:
             label, _ = self.backbone.normalize(torch.cat(labels), stats)
+            label = F.pad(
+                label, (0, normalized.shape[-1] - prediction_length), value=float("nan")
+            )
             valid = torch.isfinite(label)
-            if not valid.any():
-                raise ValueError("No observed labels")
             error = label.nan_to_num()[:, None] - normalized.float()
             q = self.backbone.quantiles[None, :, None]
-            loss = 2 * torch.maximum(q * error, (q - 1) * error)
-            result["loss"] = (loss * valid[:, None]).sum() / valid.sum()
+            loss = 2 * torch.abs(
+                error * ((label.nan_to_num()[:, None] <= normalized).float() - q)
+            )
+            # Match upstream: padded horizon mean, quantile sum, then batch mean.
+            result["loss"] = (loss * valid[:, None]).mean(-1).sum(-1).mean()
         return result
 
     def save_local(self, directory):
@@ -216,11 +222,7 @@ class SplitChronos2(nn.Module):
             or config.get("schema", {}).get("target_dim", 1) != 1
         ):
             raise ValueError("Checkpoint fields do not match its named feature schema")
-        core = replace(
-            CoreConfig(**config["core"]),
-            variate_attention="grouped",
-            variate_attention_policy="bidirectional",
-        )
+        core = CoreConfig(**config["core"])
         model = cls(Chronos2Backbone(core), config.get("feature_schema"))
         model.load_state_dict(
             torch.load(
@@ -252,9 +254,18 @@ class SplitChronos2(nn.Module):
             self.train(was_training)
 
 
-def load_model(path, checkpoint_format="pretrained", feature_schema=None):
+def load_model(
+    path, checkpoint_format="pretrained", feature_schema=None, attention=None
+):
     if checkpoint_format == "finetuned":
         model = SplitChronos2.from_local(path)
+        if attention and any(
+            getattr(model.backbone.config, name) != value
+            for name, value in attention.items()
+        ):
+            raise ValueError(
+                "Evaluation attention settings differ from the saved checkpoint"
+            )
         if feature_schema is not None and model.feature_schema != feature_schema:
             raise ValueError(
                 "Checkpoint feature names, order or vocabularies differ from dataset"
@@ -262,9 +273,19 @@ def load_model(path, checkpoint_format="pretrained", feature_schema=None):
         return model
     if checkpoint_format != "pretrained":
         raise ValueError("Unknown checkpoint format")
-    return SplitChronos2(
-        Chronos2Backbone.from_local(
-            path, variate_attention="grouped", variate_attention_policy="bidirectional"
-        ),
-        feature_schema,
+    settings = {
+        "variate_attention": "grouped",
+        "variate_attention_policy": "bidirectional",
+        "variate_grouping": "series",
+        **(attention or {}),
+    }
+    backbone = Chronos2Backbone.from_local(
+        path,
+        variate_attention=settings["variate_attention"],
+        variate_attention_policy=settings["variate_attention_policy"],
     )
+    backbone.config = replace(
+        backbone.config, variate_grouping=settings["variate_grouping"]
+    )
+    backbone.encoder.config = backbone.config
+    return SplitChronos2(backbone, feature_schema)

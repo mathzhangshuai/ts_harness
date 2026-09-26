@@ -13,6 +13,10 @@ data:
   horizon: 28
   train_end: 1913
 model:
+  attention:
+    variate_attention: grouped
+    variate_attention_policy: target_aware
+    variate_grouping: series
   pretrained: ../.model-cache/hub/models--autogluon--chronos-2-small/snapshots/ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a
 training:
   output: ../runs/m5-small-target-train

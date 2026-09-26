@@ -35,7 +35,11 @@ class EvaluationTests(unittest.TestCase):
                 ],
                 root / "store",
             )
-            load_model(DUMMY).save_local(root / "saved")
+            attention = {
+                "variate_attention_policy": "target_aware",
+                "variate_grouping": "series",
+            }
+            load_model(DUMMY, attention=attention).save_local(root / "saved")
             config = {
                 "store": str(root / "store"),
                 "output": str(root / "out"),
@@ -44,6 +48,7 @@ class EvaluationTests(unittest.TestCase):
                 "context": 7,
                 "device": "cpu",
                 "batch_size": 2,
+                "attention": attention,
                 "models": {"original": str(DUMMY), "saved": str(root / "saved")},
                 "model_formats": {"original": "pretrained", "saved": "finetuned"},
             }
@@ -64,5 +69,13 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(metadata["quantiles"], [0.5])
             with self.assertRaises(FileExistsError):
                 run(config)
+            with self.assertRaisesRegex(ValueError, "attention settings differ"):
+                run(
+                    dict(
+                        config,
+                        output=str(root / "mismatch"),
+                        attention={"variate_attention_policy": "bidirectional"},
+                    )
+                )
             with self.assertRaises(ValueError):
                 backtest_windows(dict(config, origin=12))

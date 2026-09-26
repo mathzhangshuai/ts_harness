@@ -29,7 +29,7 @@ python run.py train
 - Small 原始权重来自下载配置固定的 revision 和 SHA-256。
 - 默认全参数微调，`epochs: 1`、batch size 8、学习率 1e-5、AdamW、梯度范数上限 1.0、seed 0、FP32。
 - 使用 Lightning 2.4 管理训练循环、自动优化、梯度裁剪、进度条和 DDP。DataLoader 每轮打乱、无放回抽取窗口，`drop_last=True`，丢弃不足一个 batch 的尾部样本。
-- 多卡使用 `DistributedSampler(drop_last=True)`，不通过重复样本补齐各卡；Lightning 每轮更新 sampler 的 epoch。只有 rank 0 保存最终模型和报告。
+- Lightning DataModule 提供 DataLoader，Trainer 开启自动分布式采样管理。多卡显式提供 PyTorch 标准 `DistributedSampler(drop_last=True)`，以满足无放回且不重复补齐的要求；Lightning 识别并保留它，每轮更新 sampler 的 epoch。只有 rank 0 保存最终模型和报告。
 - 不另设验证集，不早停，不用评测区间选择检查点。超参数是起点，未作本地训练调优。
 
 CLI 可覆盖 `--epochs 3 --batch-size 4 --lr 0.000005 --output runs/another-run`。旧 `steps` 配置和 `--steps` 参数不再接受。
@@ -38,7 +38,9 @@ CLI 可覆盖 `--epochs 3 --batch-size 4 --lr 0.000005 --output runs/another-run
 
 `training.device: cuda`、`devices: auto`、`strategy: auto` 默认使用所有可见 GPU，由 Lightning 选择单卡或 DDP。可设置 `devices: 2`、`strategy: ddp`，或通过 `--devices 2 --strategy ddp` 覆盖。CPU 使用 `device: cpu`。仍使用本地改编的 Chronos-2 主干，而非官方 Pipeline.fit。
 
-训练损失保持为归一化目标上的分位数损失：`2 * max(q * error, (q - 1) * error)`，对所有预测分位数求和，再除以有效目标点数。目标复用历史窗口的归一化统计量，并按模型配置进行 arcsinh 变换。缺失标签不计入损失。MAE、1-WAPE、WRMSSE 仅用于评测。
+训练损失与本地 Chronos-2 参考实现对齐：`2 * abs(error * (I[target <= prediction] - q))`，屏蔽缺失标签和补齐位置，然后沿补齐后的预测长度取均值、沿分位数求和、沿 batch 取均值。28 天预测补齐到 32 天，因此分母使用 32，而不是有效目标点数。目标复用历史窗口的归一化统计量，并沿用权重配置中的 arcsinh 变换。MAE、1-WAPE、WRMSSE 仅用于评测。
+
+`model.attention` 配置变量注意力：`variate_attention: grouped` 为按组计算，`global_masked` 为完整矩阵加分组掩码；两者保持相同的组隔离语义。`variate_attention_policy: target_aware` 禁止协变量读取目标，`bidirectional` 允许双向读取。`variate_grouping: series` 隔离不同序列，`batch` 允许同批序列互相读取。默认启用 grouped、target_aware、series。保存并恢复这些设置；推理不会再强制改为双向。详见[参考实现核查](m5-chronos-audit.md)。
 
 `--dry-run` 在 CPU 加载模型并检查窗口，不执行前向、反向、优化器或模型保存；它不验证 GPU 显存需求。
 

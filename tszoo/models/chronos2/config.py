@@ -25,8 +25,11 @@ class CoreConfig:
     quantiles: tuple[float, ...] = (0.1, 0.5, 0.9)
     variate_attention: str = "global_masked"
     variate_attention_policy: str = "bidirectional"
+    variate_grouping: str = "series"
 
     def __post_init__(self):
+        if self.variate_grouping not in ("series", "batch"):
+            raise ValueError("variate_grouping must be series or batch")
         if self.variate_attention not in ("global_masked", "grouped"):
             raise ValueError("variate_attention must be global_masked or grouped")
         if self.variate_attention_policy not in ("bidirectional", "target_aware"):

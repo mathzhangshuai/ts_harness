@@ -32,3 +32,9 @@ M5 simplification (2026-09-26): the outer model accepts only one target per
 series; categorical/static adapters were removed. Backbone parameters, patch
 math, and target quantile loss are preserved. Existing target-only checkpoints
 remain readable.
+
+Reference audit (2026-09-26): restored configurable directional attention and
+series/batch grouping, preserved saved attention settings, and aligned target
+quantile-loss reduction with upstream's padded-horizon mean. Arcsinh normalization
+continues to follow the pretrained configuration. Named categorical/static
+adapters are local extensions and are not claimed to be upstream features.

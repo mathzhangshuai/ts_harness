@@ -110,6 +110,7 @@ def _run(config, inputs, labels, max_series):
                 checkpoint,
                 config["model_formats"][name],
                 feature_schema=inputs.feature_schema,
+                attention=config.get("attention"),
             )
             .to(device)
             .eval()

@@ -10,6 +10,21 @@ from .data.features import selection
 
 ROOT = Path(__file__).resolve().parent
 
+ATTENTION_OPTIONS = {
+    "variate_attention": ("grouped", "global_masked"),
+    "variate_attention_policy": ("bidirectional", "target_aware"),
+    "variate_grouping": ("series", "batch"),
+}
+
+
+def attention_options(value):
+    if not isinstance(value, dict) or set(value) - set(ATTENTION_OPTIONS):
+        raise ValueError("Invalid attention configuration")
+    for name, setting in value.items():
+        if setting not in ATTENTION_OPTIONS[name]:
+            raise ValueError(f"{name} must be one of {ATTENTION_OPTIONS[name]}")
+    return value
+
 
 class ConfigLoader(yaml.SafeLoader):
     pass
@@ -61,9 +76,10 @@ def load_config(path):
         "models",
         "dataset",
     }
-    if set(config) - {"features"} != required:
+    if set(config) - {"features", "attention"} != required:
         raise ValueError(f"Evaluation configuration requires {sorted(required)}")
     config["features"] = selection(config.get("features"))
+    config["attention"] = attention_options(config.get("attention", {}))
     _positive(config, ("context", "horizon", "origin", "batch_size"))
     if config["context"] > config["origin"]:
         raise ValueError("Context exceeds available history")
@@ -144,12 +160,13 @@ def load_training_config(path):
             if section == "data"
             else {"devices", "strategy"}
             if section == "training"
-            else set()
+            else {"attention"}
         )
         if not isinstance(content, dict) or set(content) - optional != set(names):
             raise ValueError(f"{section} requires {names}")
         values.update(content)
     values["features"] = selection(values.get("features"))
+    values["attention"] = attention_options(values.get("attention", {}))
     values["source"] = _path(path, values.get("source", "../datasets/m5"))
     values.setdefault("devices", "auto")
     values.setdefault("strategy", "auto")
@@ -185,4 +202,5 @@ def training_config(args):
     }
     result["data"].update(features=args.features, source=args.source)
     result["training"].update(devices=args.devices, strategy=args.strategy)
+    result["model"]["attention"] = args.attention
     return result

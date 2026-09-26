@@ -58,6 +58,10 @@ class TrainingChecks(unittest.TestCase):
             self.assertEqual(report["single_device_batches_per_epoch"], 171)
             self.assertEqual(report["single_device_total_steps"], 171)
             self.assertTrue(report["drop_last"])
+            self.assertTrue(report["model_settings"]["use_arcsinh"])
+            self.assertEqual(
+                report["model_settings"]["variate_attention_policy"], "target_aware"
+            )
             self.assertGreater(report["trainable_parameters"], 0)
             self.assertFalse((root / "out").exists())
 
@@ -116,9 +120,9 @@ class TrainingChecks(unittest.TestCase):
         self.assertEqual(settings["devices"], 2)
         self.assertEqual(settings["max_epochs"], 2)
         self.assertTrue(settings["enable_progress_bar"])
-        self.assertFalse(settings["use_distributed_sampler"])
+        self.assertTrue(settings["use_distributed_sampler"])
         model = load_model(DUMMY).eval()
-        module = ForecastTraining(model, [], args)
+        module = ForecastTraining(model, args)
         batch = [
             {
                 "target": torch.arange(32).float()[None],

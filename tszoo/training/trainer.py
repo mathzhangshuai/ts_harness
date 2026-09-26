@@ -3,11 +3,9 @@
 import argparse
 import json
 import math
-import random
 from pathlib import Path
 
 import lightning as L
-import numpy as np
 import torch
 import yaml
 from torch.utils.data import DataLoader, DistributedSampler
@@ -92,9 +90,9 @@ def training_loader(dataset, args, *, world_size=1, rank=0):
 
 
 class ForecastTraining(L.LightningModule):
-    def __init__(self, model, dataset, args):
+    def __init__(self, model, args):
         super().__init__()
-        self.model, self.dataset, self.args = model, dataset, args
+        self.model, self.args = model, args
 
     def training_step(self, batch, batch_idx):
         loss = self.model(batch, self.args.horizon)["loss"]
@@ -117,12 +115,18 @@ class ForecastTraining(L.LightningModule):
             [p for p in self.model.parameters() if p.requires_grad], lr=self.args.lr
         )
 
+
+class ForecastData(L.LightningDataModule):
+    def __init__(self, dataset, args):
+        super().__init__()
+        self.dataset, self.args = dataset, args
+
     def train_dataloader(self):
         loader = training_loader(
             self.dataset,
             self.args,
             world_size=self.trainer.world_size,
-            rank=self.global_rank,
+            rank=self.trainer.global_rank,
         )
         if not len(loader):
             raise ValueError(
@@ -143,7 +147,7 @@ def make_trainer(args):
         enable_progress_bar=True,
         enable_checkpointing=False,
         logger=False,
-        use_distributed_sampler=False,
+        use_distributed_sampler=True,
         num_sanity_val_steps=0,
     )
 
@@ -152,9 +156,7 @@ def run(args):
     root = Path(args.output)
     if root.exists():
         raise FileExistsError(root)
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    L.seed_everything(args.seed, workers=True)
     dataset = MemmapWindows(
         args.store,
         args.context,
@@ -164,7 +166,11 @@ def run(args):
         source=args.source,
     )
     try:
-        model = load_model(args.pretrained, feature_schema=dataset.feature_schema)
+        model = load_model(
+            args.pretrained,
+            feature_schema=dataset.feature_schema,
+            attention=args.attention,
+        )
         if not len(dataset):
             raise ValueError("No training windows")
         if args.train_end > 1913:
@@ -194,6 +200,15 @@ def run(args):
                 "drop_last": True,
                 "devices": args.devices,
                 "strategy": args.strategy,
+                "model_settings": {
+                    "use_arcsinh": model.backbone.config.use_arcsinh,
+                    "use_reg_token": model.backbone.config.use_reg_token,
+                    "quantiles": list(model.backbone.config.quantiles),
+                    "variate_attention": model.backbone.config.variate_attention,
+                    "variate_attention_policy": model.backbone.config.variate_attention_policy,
+                    "variate_grouping": model.backbone.config.variate_grouping,
+                    "loss": "upstream_padded_horizon_quantile_loss",
+                },
                 "batch_size": args.batch_size,
                 "lr": args.lr,
                 "requested_device": args.device,
@@ -208,7 +223,9 @@ def run(args):
             print(json.dumps(report, indent=2), flush=True)
             return report
         trainer = make_trainer(args)
-        trainer.fit(ForecastTraining(model, dataset, args))
+        trainer.fit(
+            ForecastTraining(model, args), datamodule=ForecastData(dataset, args)
+        )
         if trainer.interrupted:
             raise RuntimeError("Training interrupted; final checkpoint was not saved")
         if not trainer.is_global_zero:

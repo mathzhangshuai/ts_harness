@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +9,7 @@ import pandas as pd
 import torch
 from fixtures import DUMMY, REFERENCE
 
-from tszoo.models.chronos2 import SplitChronos2, load_model
+from tszoo.models.chronos2 import Chronos2Backbone, SplitChronos2, load_model
 
 
 class ModelTests(unittest.TestCase):
@@ -64,3 +65,113 @@ class ModelTests(unittest.TestCase):
             ]
             actual = self.model(self.windows, 7)["quantile_preds"][:, 0]
         torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-5)
+
+    def test_upstream_normalization_and_loss_including_padding_and_missing_labels(self):
+        if not REFERENCE.exists():
+            self.skipTest("Optional upstream source absent")
+        from upstream_reference import load_upstream
+
+        original = load_upstream(REFERENCE, DUMMY)
+        context = torch.cat([w["target"] for w in self.windows])
+        context[0, 2] = float("nan")
+        with torch.no_grad():
+            normalized, stats = self.model.backbone.normalize(context)
+            expected, expected_stats = original.instance_norm(context)
+            torch.testing.assert_close(normalized, expected, equal_nan=True)
+            for actual_stat, expected_stat in zip(stats, expected_stats):
+                torch.testing.assert_close(actual_stat, expected_stat)
+            for horizon in (7, 16, 28):
+                for missing in (False, True):
+                    labels = torch.arange(2 * horizon).float().reshape(2, horizon)
+                    if missing:
+                        labels[0] = float("nan")
+                        labels[1, ::3] = float("nan")
+                    windows = [
+                        dict(
+                            w,
+                            target=context[i : i + 1],
+                            future_target=labels[i : i + 1],
+                        )
+                        for i, w in enumerate(self.windows)
+                    ]
+                    expected_output = original(
+                        context=context,
+                        future_target=labels,
+                        num_output_patches=(horizon + 15) // 16,
+                    )
+                    actual_output = self.model(windows, horizon)
+                    torch.testing.assert_close(
+                        actual_output["loss"],
+                        expected_output.loss,
+                        rtol=1e-5,
+                        atol=1e-5,
+                    )
+                    torch.testing.assert_close(
+                        actual_output["quantile_preds"][:, 0],
+                        expected_output.quantile_preds[..., :horizon],
+                        rtol=1e-5,
+                        atol=1e-5,
+                    )
+
+    def test_attention_policy_and_grouped_engine(self):
+        groups = torch.tensor([0, 0, 0, 1])
+        targets = torch.tensor([True, False, False, True])
+        tokens = torch.randn(4, 5, self.model.backbone.config.d_model)
+        observed = torch.ones(4, 5, dtype=torch.bool)
+        observed[1, 0] = False
+        with torch.no_grad():
+            for policy in ("bidirectional", "target_aware"):
+                outputs = []
+                for engine in ("global_masked", "grouped"):
+                    backbone = Chronos2Backbone(
+                        replace(
+                            self.model.backbone.config,
+                            variate_attention=engine,
+                            variate_attention_policy=policy,
+                        )
+                    ).eval()
+                    backbone.load_state_dict(self.model.backbone.state_dict())
+                    before = backbone.encoder(tokens, observed, groups, targets)
+                    changed = tokens.clone()
+                    changed[0] += torch.randn_like(changed[0]) * 100
+                    after = backbone.encoder(changed, observed, groups, targets)
+                    torch.testing.assert_close(before[3], after[3], rtol=0, atol=0)
+                    if policy == "target_aware":
+                        torch.testing.assert_close(
+                            before[1:3], after[1:3], rtol=0, atol=0
+                        )
+                    else:
+                        self.assertFalse(torch.equal(before[1:3], after[1:3]))
+                    outputs.append(before)
+                torch.testing.assert_close(outputs[0], outputs[1], rtol=1e-5, atol=1e-5)
+
+    def test_attention_settings_survive_checkpoint_and_grouping_is_configurable(self):
+        attention = {
+            "variate_attention": "global_masked",
+            "variate_attention_policy": "target_aware",
+            "variate_grouping": "batch",
+        }
+        model = load_model(DUMMY, attention=attention).eval()
+        before = model.predict(self.windows, 7)
+        changed = [dict(w) for w in self.windows]
+        changed[1]["target"] = torch.randn_like(changed[1]["target"]) * 100
+        after = model.predict(changed, 7)
+        self.assertFalse(
+            np.array_equal(before[0].forecast_array, after[0].forecast_array)
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "checkpoint"
+            model.save_local(root)
+            restored = load_model(root, "finetuned", attention=attention)
+            for name, value in attention.items():
+                self.assertEqual(getattr(restored.backbone.config, name), value)
+            np.testing.assert_array_equal(
+                before[0].forecast_array,
+                restored.predict(self.windows, 7)[0].forecast_array,
+            )
+            with self.assertRaises(ValueError):
+                load_model(
+                    root,
+                    "finetuned",
+                    attention={"variate_attention_policy": "bidirectional"},
+                )

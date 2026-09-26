@@ -289,7 +289,7 @@ class Chronos2Backbone(nn.Module):
         normalized = (
             z.reshape(z.shape[0], patches, nq, p)
             .permute(0, 2, 1, 3)
-            .flatten(2)[..., :horizon]
+            .flatten(2)
         )
         values = (
             torch.sinh(normalized.float())
@@ -297,7 +297,7 @@ class Chronos2Backbone(nn.Module):
             else normalized.float()
         )
         values = values * stats[1][:, None] + stats[0][:, None]
-        return normalized, values
+        return normalized, values[..., :horizon]
 
     def forward(
         self, past, future=None, groups=None, prediction_length=1, target_mask=None

@@ -36,6 +36,7 @@ class ConfigurationTests(unittest.TestCase):
                 ("training", "devices", 0),
                 ("training", "devices", True),
                 ("training", "strategy", "invalid"),
+                ("model", "attention", {"variate_attention_policy": "invalid"}),
                 ("training", "lr", float("nan")),
             ):
                 invalid = yaml.safe_load(yaml.safe_dump(raw))
