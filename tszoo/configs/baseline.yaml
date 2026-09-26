@@ -11,7 +11,7 @@ output: ../runs/m5-baseline
 context: 512
 horizon: 28
 origin: 1913
-batch_size: 16
+batch_size: 80
 device: cuda
 models:
   chronos2_small:

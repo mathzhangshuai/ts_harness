@@ -139,12 +139,28 @@ def load_training_config(path):
     values = {}
     for section, names in SECTIONS.items():
         content = config[section]
-        optional = {"features", "source"} if section == "data" else set()
+        optional = (
+            {"features", "source"}
+            if section == "data"
+            else {"devices", "strategy"}
+            if section == "training"
+            else set()
+        )
         if not isinstance(content, dict) or set(content) - optional != set(names):
             raise ValueError(f"{section} requires {names}")
         values.update(content)
     values["features"] = selection(values.get("features"))
     values["source"] = _path(path, values.get("source", "../datasets/m5"))
+    values.setdefault("devices", "auto")
+    values.setdefault("strategy", "auto")
+    if values["devices"] != "auto" and (
+        type(values["devices"]) is not int or values["devices"] < 1
+    ):
+        raise ValueError("devices must be auto or a positive device count")
+    if values["strategy"] not in ("auto", "ddp"):
+        raise ValueError("strategy must be auto or ddp")
+    if values["device"] not in ("cpu", "cuda", "auto"):
+        raise ValueError("Training device must be cpu, cuda or auto")
     _positive(values, ("context", "horizon", "train_end", "epochs", "batch_size"))
     for name in ("workers", "seed"):
         if type(values[name]) is not int or values[name] < 0:
@@ -168,4 +184,5 @@ def training_config(args):
         for section, names in SECTIONS.items()
     }
     result["data"].update(features=args.features, source=args.source)
+    result["training"].update(devices=args.devices, strategy=args.strategy)
     return result

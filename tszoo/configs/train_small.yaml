@@ -22,3 +22,5 @@ training:
   lr: 0.00001
   seed: 0
   device: cuda
+  devices: auto
+  strategy: auto

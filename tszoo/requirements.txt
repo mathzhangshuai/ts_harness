@@ -8,6 +8,7 @@ torch==2.5.1+cu121
 
 # Forecasting with the PyTorch backend.
 gluonts[torch]==0.16.3
+lightning==2.4.0
 numpy==2.4.6
 pandas==2.3.3
 

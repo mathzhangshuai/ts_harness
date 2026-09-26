@@ -33,6 +33,9 @@ class ConfigurationTests(unittest.TestCase):
                 ("training", "epochs", True),
                 ("training", "epochs", 0),
                 ("training", "steps", 1000),
+                ("training", "devices", 0),
+                ("training", "devices", True),
+                ("training", "strategy", "invalid"),
                 ("training", "lr", float("nan")),
             ):
                 invalid = yaml.safe_load(yaml.safe_dump(raw))

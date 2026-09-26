@@ -6,10 +6,11 @@ import math
 import random
 from pathlib import Path
 
+import lightning as L
 import numpy as np
 import torch
 import yaml
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 
 from ..config import ROOT, load_training_config, training_config
 from ..data import MemmapWindows, collate_windows
@@ -37,6 +38,12 @@ def parse_args(argv=None):
     ):
         parser.add_argument("--" + name.replace("_", "-"), type=int)
     parser.add_argument("--lr", type=float)
+    parser.add_argument(
+        "--devices",
+        type=lambda value: value if value == "auto" else int(value),
+        help="Positive device count or auto",
+    )
+    parser.add_argument("--strategy", choices=("auto", "ddp"))
     preliminary, _ = parser.parse_known_args(argv)
     try:
         parser.set_defaults(**load_training_config(preliminary.config))
@@ -53,18 +60,91 @@ def parse_args(argv=None):
         parser.error("Invalid training parameters")
     if args.train_end > 1913:
         parser.error("M5 training must not read the d_1914-d_1941 holdout")
+    if args.device not in ("cuda", "cpu", "auto"):
+        parser.error("Training device must be cuda, cpu or auto")
+    if args.devices != "auto" and args.devices < 1:
+        parser.error("devices must be positive")
     return args
 
 
-def training_loader(dataset, args):
+def training_loader(dataset, args, *, world_size=1, rank=0):
+    sampler = None
+    if world_size > 1:
+        # Drop the distributed tail instead of padding it with repeated windows.
+        sampler = DistributedSampler(
+            dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=True,
+            seed=args.seed,
+            drop_last=True,
+        )
     return DataLoader(
         dataset,
-        shuffle=True,
-        drop_last=False,
+        shuffle=sampler is None,
+        sampler=sampler,
+        drop_last=True,
         batch_size=args.batch_size,
         num_workers=args.workers,
         collate_fn=collate_windows,
         generator=torch.Generator().manual_seed(args.seed),
+    )
+
+
+class ForecastTraining(L.LightningModule):
+    def __init__(self, model, dataset, args):
+        super().__init__()
+        self.model, self.dataset, self.args = model, dataset, args
+
+    def training_step(self, batch, batch_idx):
+        loss = self.model(batch, self.args.horizon)["loss"]
+        if not torch.isfinite(loss):
+            raise RuntimeError("Non-finite training loss")
+        self.log(
+            "train_loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=False,
+            sync_dist=True,
+            batch_size=len(batch),
+        )
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.AdamW(
+            [p for p in self.model.parameters() if p.requires_grad], lr=self.args.lr
+        )
+
+    def train_dataloader(self):
+        loader = training_loader(
+            self.dataset,
+            self.args,
+            world_size=self.trainer.world_size,
+            rank=self.global_rank,
+        )
+        if not len(loader):
+            raise ValueError(
+                "No full training batch per device; reduce batch_size or devices"
+            )
+        return loader
+
+
+def make_trainer(args):
+    return L.Trainer(
+        accelerator="gpu" if args.device == "cuda" else args.device,
+        devices=args.devices,
+        strategy=args.strategy,
+        max_epochs=args.epochs,
+        gradient_clip_val=1.0,
+        gradient_clip_algorithm="norm",
+        precision="32-true",
+        enable_progress_bar=True,
+        enable_checkpointing=False,
+        logger=False,
+        use_distributed_sampler=False,
+        num_sanity_val_steps=0,
     )
 
 
@@ -97,6 +177,8 @@ def run(args):
         ):
             raise ValueError("Window exceeds checkpoint limits")
         loader = training_loader(dataset, args)
+        if not len(loader):
+            raise ValueError("No full training batch; reduce batch_size")
         if args.dry_run:
             examples = [dataset[0], dataset[len(dataset) - 1]]
             report = {
@@ -107,8 +189,11 @@ def run(args):
                 "training_windows": len(dataset),
                 "train_end": args.train_end,
                 "epochs": args.epochs,
-                "batches_per_epoch": len(loader),
-                "total_steps": args.epochs * len(loader),
+                "single_device_batches_per_epoch": len(loader),
+                "single_device_total_steps": args.epochs * len(loader),
+                "drop_last": True,
+                "devices": args.devices,
+                "strategy": args.strategy,
                 "batch_size": args.batch_size,
                 "lr": args.lr,
                 "requested_device": args.device,
@@ -122,34 +207,12 @@ def run(args):
             }
             print(json.dumps(report, indent=2), flush=True)
             return report
-        model.to(args.device)
-        parameters = [p for p in model.parameters() if p.requires_grad]
-        optimizer = torch.optim.AdamW(parameters, lr=args.lr)
-        losses = []
-        model.train()
-        step = 0
-        for epoch in range(1, args.epochs + 1):
-            for batch_index, batch in enumerate(loader, 1):
-                optimizer.zero_grad(set_to_none=True)
-                loss = model(batch, args.horizon)["loss"]
-                if not torch.isfinite(loss):
-                    raise RuntimeError("Non-finite training loss")
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(parameters, 1.0, error_if_nonfinite=True)
-                optimizer.step()
-                step += 1
-                losses.append(float(loss.detach()))
-                print(
-                    json.dumps(
-                        {
-                            "epoch": epoch,
-                            "batch": batch_index,
-                            "step": step,
-                            "loss": losses[-1],
-                        }
-                    ),
-                    flush=True,
-                )
+        trainer = make_trainer(args)
+        trainer.fit(ForecastTraining(model, dataset, args))
+        if trainer.interrupted:
+            raise RuntimeError("Training interrupted; final checkpoint was not saved")
+        if not trainer.is_global_zero:
+            return
         model.save_local(root)
         resolved = training_config(args)
         for section, key in (
@@ -167,9 +230,14 @@ def run(args):
                     "arguments": vars(args),
                     "features": args.features,
                     "completed_epochs": args.epochs,
-                    "batches_per_epoch": len(loader),
-                    "total_steps": step,
-                    "losses": losses,
+                    "world_size": trainer.world_size,
+                    "batches_per_epoch": int(trainer.num_training_batches),
+                    "total_steps": trainer.global_step,
+                    "metrics": {
+                        name: float(value.detach().cpu())
+                        for name, value in trainer.callback_metrics.items()
+                    },
+                    "lightning": L.__version__,
                     "torch": torch.__version__,
                     "validation": "No validation or test-based selection",
                 },

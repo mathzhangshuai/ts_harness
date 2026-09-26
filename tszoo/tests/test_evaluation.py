@@ -29,7 +29,10 @@ class EvaluationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_store(
-                [{"item_id": "a", "start": "2020-01-01", "target": np.arange(14)}],
+                [
+                    {"item_id": str(i), "start": "2020-01-01", "target": np.arange(14)}
+                    for i in range(3)
+                ],
                 root / "store",
             )
             load_model(DUMMY).save_local(root / "saved")
@@ -49,7 +52,9 @@ class EvaluationTests(unittest.TestCase):
             saved = np.load(root / "out/saved.npy")
             np.testing.assert_array_equal(original, saved)
             truth = np.load(root / "out/targets.npy")
-            np.testing.assert_array_equal(truth, [[10, 11, 12]])
+            np.testing.assert_array_equal(truth, [[10, 11, 12]] * 3)
+            self.assertEqual(original.shape, (3, 1, 3))
+            self.assertEqual(result["series"], 3)
             error = np.abs(original[:, 0].astype(np.float64) - truth)
             for metrics in result["models"].values():
                 self.assertAlmostEqual(metrics["mae"], error.mean())
