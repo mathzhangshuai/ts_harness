@@ -1,0 +1,20 @@
+data:
+  store: ../datasets/processed/m5-train-target
+  schema: ../datasets/processed/m5-train-target/schema.json
+  context: 512
+  horizon: 28
+  train_end: 1913
+  fields: [target]
+model:
+  pretrained: ../.model-cache/hub/models--autogluon--chronos-2-small/snapshots/ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a
+  variate_attention: grouped
+  variate_attention_policy: bidirectional
+  freeze_backbone: false
+training:
+  output: ../runs/m5-small-target-train
+  steps: 1000
+  batch_size: 8
+  workers: 0
+  lr: 0.00001
+  seed: 0
+  device: cuda

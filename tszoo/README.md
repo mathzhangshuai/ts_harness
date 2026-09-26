@@ -1,5 +1,7 @@
 # tszoo
 
+Chronos-2-small 仅目标变量微调见 [云端训练流程](docs/m5-small-training.md)，配置为 `config/m5-small-target-train.yaml`。
+
 线上环境通过 GitHub 克隆，参见 [GitHub 与线上环境](docs/github-workflow.md)。数据、权重及运行产物不上传；具体训练方案后续确定。
 
 模型探索实现集中在以下五类目录：

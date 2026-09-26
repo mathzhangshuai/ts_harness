@@ -1,5 +1,7 @@
 # M5 双模型零样本基线
 
+训练入口见 [Chronos-2-small 仅目标变量微调](m5-small-training.md)。
+
 | 报告 | 内容 |
 | --- | --- |
 | [零样本基线](m5-zero-shot.md) | Chronos-2-small、Chronos-2；1-WAPE、MAE、WRMSSE |

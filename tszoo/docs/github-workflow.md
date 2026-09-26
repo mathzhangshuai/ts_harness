@@ -11,7 +11,7 @@ cd ts_harness/tszoo
 
 ## 环境与资源
 
-使用 Python 3.11。当前 `requirements.txt` 固定 CUDA 12.1 的 PyTorch，需先核对线上 GPU 和驱动是否兼容，再安装依赖。线上硬件适配和训练方案尚未确定。
+使用 Python 3.11。当前 `requirements.txt` 固定 CUDA 12.1 的 PyTorch，需先核对线上 GPU 和驱动是否兼容，再安装依赖。Small 仅目标变量训练见 [训练流程](m5-small-training.md)，线上硬件适配仍需按实际环境确认。
 
 ```bash
 python -m pip install -r requirements.txt

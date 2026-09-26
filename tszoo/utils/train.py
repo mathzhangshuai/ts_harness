@@ -20,6 +20,11 @@ from ..models.chronos2 import Chronos2Backbone, FeatureSchema, SplitChronos2
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", help="YAML config; explicit CLI flags override it")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate data and checkpoint on CPU without forward/backward or saving",
+    )
     parser.add_argument("--store")
     parser.add_argument("--schema")
     parser.add_argument(
@@ -84,8 +89,7 @@ def parse_args(argv=None):
     return args
 
 
-def main():
-    args = parse_args()
+def run(args):
     if Path(args.output).exists():
         raise FileExistsError("Output directory already exists")
     random.seed(args.seed)
@@ -97,7 +101,7 @@ def main():
         variate_attention=args.variate_attention,
         variate_attention_policy=args.variate_attention_policy,
     )
-    model = SplitChronos2(backbone, schema, fields=args.fields).to(args.device)
+    model = SplitChronos2(backbone, schema, fields=args.fields)
     if args.freeze_backbone:
         model.backbone.requires_grad_(False)
     parameters = [
@@ -112,6 +116,30 @@ def main():
     )
     if not len(dataset):
         raise ValueError("No training windows inside train-end")
+    if args.context > backbone.config.context_length or args.horizon > (
+        backbone.config.patch_size * backbone.config.max_output_patches
+    ):
+        raise ValueError("Training window exceeds checkpoint limits")
+    if args.dry_run:
+        examples = [dataset[0], dataset[len(dataset) - 1]]
+        report = {
+            "dry_run": True,
+            "fields": list(model.fields),
+            "series": len(dataset.manifest["series"]),
+            "training_windows": len(dataset),
+            "train_end": args.train_end,
+            "trainable_parameters": sum(p.numel() for p in parameters),
+            "steps": args.steps,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "requested_device": args.device,
+            "example_forecast_starts": [str(x["forecast_start"]) for x in examples],
+            "example_label_shapes": [list(x["future_target"].shape) for x in examples],
+        }
+        print(json.dumps(report, indent=2), flush=True)
+        return report
+    model.to(args.device)
+    parameters = [p for p in model.parameters() if p.requires_grad]
     # Replacement sampling has bounded memory even for millions of possible windows.
     generator = torch.Generator().manual_seed(args.seed)
     sampler = RandomSampler(
@@ -163,6 +191,10 @@ def main():
     (Path(args.output) / "run.json").write_text(
         json.dumps(run, indent=2), encoding="utf-8"
     )
+
+
+def main():
+    run(parse_args())
 
 
 if __name__ == "__main__":

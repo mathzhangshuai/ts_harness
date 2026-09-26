@@ -1,5 +1,7 @@
 # 配置
 
+云端仅目标变量微调使用 `m5-small-target-train.yaml`，步骤见 [训练说明](../docs/m5-small-training.md)。`train --dry-run` 仅检查配置、数据和权重，不执行训练。
+
 当前基线入口为 `python run.py baseline`，使用 `m5-baseline.yaml`，仅运行 Chronos-2-small、Chronos-2，保存 1-WAPE、MAE、WRMSSE。以下其他配置保留为可选实验配置，不属于当前基线。
 
 从独立项目 `tszoo` 目录执行：

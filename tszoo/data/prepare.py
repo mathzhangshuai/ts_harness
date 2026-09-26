@@ -89,13 +89,17 @@ def fresh_entries(path, mapping, categories, max_series=None):
         yield entry
 
 
-def m5_entries(directory, categories, max_series=None):
-    """Use only evaluation history, avoiding duplicate validation history."""
+def m5_entries(
+    directory, categories, max_series=None, *, split="evaluation", target_only=False
+):
+    """Read one sales table; optionally omit all static covariates."""
+    if split not in ("validation", "evaluation"):
+        raise ValueError("M5 split must be validation or evaluation")
     root = Path(directory)
     with (root / "calendar.csv").open(encoding="utf-8", newline="") as stream:
         calendar = {row["d"]: row["date"] for row in csv.DictReader(stream)}
     static_columns = ("item_id", "dept_id", "cat_id", "store_id", "state_id")
-    with (root / "sales_train_evaluation.csv").open(
+    with (root / f"sales_train_{split}.csv").open(
         encoding="utf-8", newline=""
     ) as stream:
         reader = csv.DictReader(stream)
@@ -109,19 +113,21 @@ def m5_entries(directory, categories, max_series=None):
         if not dates.equals(pd.date_range(dates[0], periods=len(dates), freq="D")):
             raise ValueError("M5 calendar is not daily/contiguous")
         for row in islice(reader, max_series):
-            yield {
+            entry = {
                 FN.ITEM_ID: row["id"],
                 FN.START: pd.Period(dates[0], freq="D"),
                 FN.TARGET: np.array(
                     [float(row[day]) for day in days], dtype=np.float32
                 ),
-                FN.FEAT_STATIC_CAT: np.array(
+            }
+            if not target_only:
+                entry[FN.FEAT_STATIC_CAT] = np.array(
                     [
                         categories.encode(f"feat_static_cat:{name}", [row[name]])[0]
                         for name in static_columns
                     ]
-                ),
-            }
+                )
+            yield entry
 
 
 def main():
@@ -136,7 +142,17 @@ def main():
         "--vocabulary", help="Reuse training vocabulary; unseen categories become ID 0"
     )
     parser.add_argument("--max-series", type=int)
+    parser.add_argument(
+        "--m5-split", choices=("validation", "evaluation"), default="evaluation"
+    )
+    parser.add_argument(
+        "--target-only", action="store_true", help="M5: omit all covariates"
+    )
     args = parser.parse_args()
+    if args.dataset != "m5" and (args.target_only or args.m5_split != "evaluation"):
+        parser.error("m5-split and target-only apply only to M5")
+    if args.target_only and (args.mapping or args.vocabulary):
+        parser.error("target-only cannot use a feature mapping or vocabulary")
     if args.max_series is not None and args.max_series < 1:
         parser.error("max-series must be positive")
     mapping = (
@@ -165,10 +181,26 @@ def main():
     )
     categories = Categories(vocabulary)
     if args.dataset == "m5":
-        entries = m5_entries(args.source, categories, args.max_series)
-        mapping = {
-            FN.FEAT_STATIC_CAT: ["item_id", "dept_id", "cat_id", "store_id", "state_id"]
-        }
+        entries = m5_entries(
+            args.source,
+            categories,
+            args.max_series,
+            split=args.m5_split,
+            target_only=args.target_only,
+        )
+        mapping = (
+            {}
+            if args.target_only
+            else {
+                FN.FEAT_STATIC_CAT: [
+                    "item_id",
+                    "dept_id",
+                    "cat_id",
+                    "store_id",
+                    "state_id",
+                ]
+            }
+        )
     else:
         entries = fresh_entries(args.source, mapping, categories, args.max_series)
     manifest = write_store(entries, args.output, "D")
