@@ -1,6 +1,8 @@
 # tszoo
 
-M5 仅目标变量预测：Chronos-2-small、Chronos-2 零样本基线，以及 Small 全参数微调。没有 `src/` 嵌套或通用数据集框架。
+支持通过 YAML 按字段名选择七类时序变量，默认仍为仅销量输入。参见[变量配置](docs/m5-features.md)。
+
+M5 预测：Chronos-2-small、Chronos-2 仅目标变量零样本基线，以及支持可选协变量的 Small 全参数微调。没有 `src/` 嵌套或通用数据集框架。
 
 ## 目录
 

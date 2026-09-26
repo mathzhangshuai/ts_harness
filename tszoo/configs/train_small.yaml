@@ -1,4 +1,13 @@
 data:
+  source: ../datasets/m5
+  features:
+    target: [sales]
+    feat_static_cat: []
+    feat_static_real: []
+    feat_dynamic_cat: []
+    feat_dynamic_real: []
+    past_feat_dynamic_cat: []
+    past_feat_dynamic_real: []
   store: ../datasets/processed/m5-train-target
   context: 512
   horizon: 28

@@ -1,4 +1,4 @@
-"""Fine-tune the target-only Chronos-2-small model."""
+"""Fine-tune Chronos-2-small using YAML-selected named M5 features."""
 
 import argparse
 import json
@@ -62,9 +62,16 @@ def run(args):
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    model = load_model(args.pretrained)
-    dataset = MemmapWindows(args.store, args.context, args.horizon, end=args.train_end)
+    dataset = MemmapWindows(
+        args.store,
+        args.context,
+        args.horizon,
+        end=args.train_end,
+        features=args.features,
+        source=args.source,
+    )
     try:
+        model = load_model(args.pretrained, feature_schema=dataset.feature_schema)
         if not len(dataset):
             raise ValueError("No training windows")
         if args.train_end > 1913:
@@ -80,7 +87,8 @@ def run(args):
             examples = [dataset[0], dataset[len(dataset) - 1]]
             report = {
                 "dry_run": True,
-                "fields": ["target"],
+                "fields": [f for f, names in args.features.items() if names],
+                "features": args.features,
                 "series": len(dataset.manifest["series"]),
                 "training_windows": len(dataset),
                 "train_end": args.train_end,
@@ -141,7 +149,7 @@ def run(args):
             json.dumps(
                 {
                     "arguments": vars(args),
-                    "fields": ["target"],
+                    "features": args.features,
                     "losses": losses,
                     "torch": torch.__version__,
                     "validation": "No validation or test-based selection",

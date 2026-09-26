@@ -1,4 +1,12 @@
 store: ../datasets/processed/m5-zero-shot
+features:
+  target: [sales]
+  feat_static_cat: []
+  feat_static_real: []
+  feat_dynamic_cat: []
+  feat_dynamic_real: []
+  past_feat_dynamic_cat: []
+  past_feat_dynamic_real: []
 output: ../runs/m5-baseline
 context: 512
 horizon: 28

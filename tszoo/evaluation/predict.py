@@ -17,7 +17,13 @@ from .metrics import Scores
 def backtest_windows(config):
     origin, horizon = config["origin"], config["horizon"]
     inputs = MemmapWindows(
-        config["store"], config["context"], horizon, mode="predict", end=origin
+        config["store"],
+        config["context"],
+        horizon,
+        mode="predict",
+        end=origin,
+        features=config.get("features"),
+        source=config.get("dataset", {}).get("path"),
     )
     records = inputs.manifest["series"]
     if (
@@ -43,6 +49,17 @@ def run(config, max_series=None):
 
 
 def _run(config, inputs, labels, max_series):
+    learned_features = any(
+        names
+        for field, names in inputs.features.items()
+        if field.endswith("_cat") or field == "feat_static_real"
+    )
+    if learned_features and any(
+        fmt == "pretrained" for fmt in config["model_formats"].values()
+    ):
+        raise ValueError(
+            "Categorical/static-real encoders require a finetuned checkpoint for evaluation"
+        )
     count = len(inputs) if max_series is None else min(max_series, len(inputs))
     if count < 1:
         raise ValueError("At least one series is required")
@@ -52,7 +69,13 @@ def _run(config, inputs, labels, max_series):
     root = Path(config["output"])
     root.mkdir(parents=True, exist_ok=False)
     # Retain the saved-array contract used by existing M5 scoring artifacts.
-    resolved = dict(config, device=device, fields=["target"], quantiles=[0.5])
+    resolved = dict(
+        config,
+        device=device,
+        fields=[f for f, names in inputs.features.items() if names],
+        feature_schema=inputs.feature_schema,
+        quantiles=[0.5],
+    )
     (root / "resolved_config.yaml").write_text(
         yaml.safe_dump(resolved, sort_keys=False), encoding="utf-8"
     )
@@ -82,7 +105,15 @@ def _run(config, inputs, labels, max_series):
     }
     for name, checkpoint in config["models"].items():
         started = time.perf_counter()
-        model = load_model(checkpoint, config["model_formats"][name]).to(device).eval()
+        model = (
+            load_model(
+                checkpoint,
+                config["model_formats"][name],
+                feature_schema=inputs.feature_schema,
+            )
+            .to(device)
+            .eval()
+        )
         model.requires_grad_(False)
         median = model.backbone.config.quantiles.index(0.5)
         predictions = np.lib.format.open_memmap(

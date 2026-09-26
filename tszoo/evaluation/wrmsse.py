@@ -164,8 +164,8 @@ def run(source, run_dir, output, *, summary_only=False):
     origin, horizon = config["origin"], config["horizon"]
     if summary["series"] != 30490 or horizon != 28:
         raise ValueError("Official M5 scoring requires all 30490 series and 28 days")
-    if config.get("fields", ["target"]) != ["target"]:
-        raise ValueError("This entry point scores target-only runs")
+    if "target" not in config.get("fields", ["target"]):
+        raise ValueError("Scoring requires target predictions")
     if (
         summary["quantiles"] != config["quantiles"]
         or summary["postprocessing"] != "none"

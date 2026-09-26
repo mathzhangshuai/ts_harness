@@ -1,4 +1,4 @@
-"""Target-only memmap stores; compatible with existing M5 target files."""
+"""M5 sales memmaps with optional named raw-source covariates."""
 
 import json
 import os
@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+
+from .features import M5Features, selection
 
 
 def write_store(entries, directory, freq="D"):
@@ -69,12 +71,25 @@ class MemmapWindows(Dataset):
         start=None,
         end=None,
         mode="train",
+        features=None,
+        source=None,
     ):
         self.root = Path(directory)
         self.manifest = json.loads(
             (self.root / "manifest.json").read_text(encoding="utf-8")
         )
         manifest = self.manifest
+        self.features = selection(features)
+        self.feature_source = None
+        if any(names for field, names in self.features.items() if field != "target"):
+            if source is None:
+                raise ValueError("Selected covariates require an M5 source directory")
+            self.feature_source = M5Features(source, self.features)
+        self.feature_schema = (
+            self.feature_source.schema
+            if self.feature_source
+            else {"features": self.features, "vocabularies": {}}
+        )
         if (
             manifest["version"] != 1
             or manifest["freq"] != "D"
@@ -87,6 +102,19 @@ class MemmapWindows(Dataset):
         ):
             raise ValueError("Invalid window sizes or mode")
         records = manifest["series"]
+        if self.feature_source is not None:
+            if any(record["start"] != self.feature_source.start for record in records):
+                raise ValueError("Sales store and covariate calendar starts differ")
+            ids = [
+                r["item_id"].removesuffix("_validation").removesuffix("_evaluation")
+                for r in records
+            ]
+            if any(key not in self.feature_source.metadata.index for key in ids):
+                raise ValueError("Sales store series missing from M5 feature metadata")
+            if self.feature_source.static is not None and any(
+                key not in self.feature_source.static.index for key in ids
+            ):
+                raise ValueError("Series missing from static_features.csv")
         if not records or len({r["item_id"] for r in records}) != len(records):
             raise ValueError("Require nonempty unique series")
         if end is not None and (end < 1 or any(r["length"] < end for r in records)):
@@ -155,6 +183,15 @@ class MemmapWindows(Dataset):
         if self.mode == "train":
             result["future_target"] = self._read(
                 record, origin, origin + self.prediction_length
+            )
+        if self.feature_source is not None:
+            result.update(
+                self.feature_source.window(
+                    record["item_id"],
+                    origin - self.context_length,
+                    origin,
+                    self.prediction_length,
+                )
             )
         return result
 

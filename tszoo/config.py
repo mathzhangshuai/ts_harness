@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from .data.features import selection
+
 ROOT = Path(__file__).resolve().parent
 
 
@@ -59,8 +61,9 @@ def load_config(path):
         "models",
         "dataset",
     }
-    if set(config) != required:
+    if set(config) - {"features"} != required:
         raise ValueError(f"Evaluation configuration requires {sorted(required)}")
+    config["features"] = selection(config.get("features"))
     _positive(config, ("context", "horizon", "origin", "batch_size"))
     if config["context"] > config["origin"]:
         raise ValueError("Context exceeds available history")
@@ -136,9 +139,12 @@ def load_training_config(path):
     values = {}
     for section, names in SECTIONS.items():
         content = config[section]
-        if not isinstance(content, dict) or set(content) != set(names):
+        optional = {"features", "source"} if section == "data" else set()
+        if not isinstance(content, dict) or set(content) - optional != set(names):
             raise ValueError(f"{section} requires {names}")
         values.update(content)
+    values["features"] = selection(values.get("features"))
+    values["source"] = _path(path, values.get("source", "../datasets/m5"))
     _positive(values, ("context", "horizon", "train_end", "steps", "batch_size"))
     for name in ("workers", "seed"):
         if type(values[name]) is not int or values[name] < 0:
@@ -157,7 +163,9 @@ def load_training_config(path):
 
 
 def training_config(args):
-    return {
+    result = {
         section: {name: getattr(args, name) for name in names}
         for section, names in SECTIONS.items()
     }
+    result["data"].update(features=args.features, source=args.source)
+    return result
