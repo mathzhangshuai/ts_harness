@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import yaml
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader
 
 from ..config import ROOT, load_training_config, training_config
 from ..data import MemmapWindows, collate_windows
@@ -30,7 +30,7 @@ def parse_args(argv=None):
         "context",
         "horizon",
         "train_end",
-        "steps",
+        "epochs",
         "batch_size",
         "workers",
         "seed",
@@ -44,7 +44,8 @@ def parse_args(argv=None):
         parser.error(str(error))
     args = parser.parse_args(argv)
     if (
-        min(args.context, args.horizon, args.train_end, args.steps, args.batch_size) < 1
+        min(args.context, args.horizon, args.train_end, args.epochs, args.batch_size)
+        < 1
         or min(args.workers, args.seed) < 0
         or not math.isfinite(args.lr)
         or args.lr <= 0
@@ -53,6 +54,18 @@ def parse_args(argv=None):
     if args.train_end > 1913:
         parser.error("M5 training must not read the d_1914-d_1941 holdout")
     return args
+
+
+def training_loader(dataset, args):
+    return DataLoader(
+        dataset,
+        shuffle=True,
+        drop_last=False,
+        batch_size=args.batch_size,
+        num_workers=args.workers,
+        collate_fn=collate_windows,
+        generator=torch.Generator().manual_seed(args.seed),
+    )
 
 
 def run(args):
@@ -83,6 +96,7 @@ def run(args):
             * model.backbone.config.max_output_patches
         ):
             raise ValueError("Window exceeds checkpoint limits")
+        loader = training_loader(dataset, args)
         if args.dry_run:
             examples = [dataset[0], dataset[len(dataset) - 1]]
             report = {
@@ -92,7 +106,9 @@ def run(args):
                 "series": len(dataset.manifest["series"]),
                 "training_windows": len(dataset),
                 "train_end": args.train_end,
-                "steps": args.steps,
+                "epochs": args.epochs,
+                "batches_per_epoch": len(loader),
+                "total_steps": args.epochs * len(loader),
                 "batch_size": args.batch_size,
                 "lr": args.lr,
                 "requested_device": args.device,
@@ -108,32 +124,32 @@ def run(args):
             return report
         model.to(args.device)
         parameters = [p for p in model.parameters() if p.requires_grad]
-        sampler = RandomSampler(
-            dataset,
-            replacement=True,
-            num_samples=args.steps * args.batch_size,
-            generator=torch.Generator().manual_seed(args.seed),
-        )
-        loader = DataLoader(
-            dataset,
-            sampler=sampler,
-            batch_size=args.batch_size,
-            num_workers=args.workers,
-            collate_fn=collate_windows,
-        )
         optimizer = torch.optim.AdamW(parameters, lr=args.lr)
         losses = []
         model.train()
-        for step, batch in enumerate(loader, 1):
-            optimizer.zero_grad(set_to_none=True)
-            loss = model(batch, args.horizon)["loss"]
-            if not torch.isfinite(loss):
-                raise RuntimeError("Non-finite training loss")
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters, 1.0, error_if_nonfinite=True)
-            optimizer.step()
-            losses.append(float(loss.detach()))
-            print(json.dumps({"step": step, "loss": losses[-1]}), flush=True)
+        step = 0
+        for epoch in range(1, args.epochs + 1):
+            for batch_index, batch in enumerate(loader, 1):
+                optimizer.zero_grad(set_to_none=True)
+                loss = model(batch, args.horizon)["loss"]
+                if not torch.isfinite(loss):
+                    raise RuntimeError("Non-finite training loss")
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(parameters, 1.0, error_if_nonfinite=True)
+                optimizer.step()
+                step += 1
+                losses.append(float(loss.detach()))
+                print(
+                    json.dumps(
+                        {
+                            "epoch": epoch,
+                            "batch": batch_index,
+                            "step": step,
+                            "loss": losses[-1],
+                        }
+                    ),
+                    flush=True,
+                )
         model.save_local(root)
         resolved = training_config(args)
         for section, key in (
@@ -150,6 +166,9 @@ def run(args):
                 {
                     "arguments": vars(args),
                     "features": args.features,
+                    "completed_epochs": args.epochs,
+                    "batches_per_epoch": len(loader),
+                    "total_steps": step,
                     "losses": losses,
                     "torch": torch.__version__,
                     "validation": "No validation or test-based selection",

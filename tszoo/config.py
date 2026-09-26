@@ -128,7 +128,7 @@ def load_config(path):
 SECTIONS = {
     "data": ("store", "context", "horizon", "train_end"),
     "model": ("pretrained",),
-    "training": ("output", "steps", "batch_size", "workers", "lr", "seed", "device"),
+    "training": ("output", "epochs", "batch_size", "workers", "lr", "seed", "device"),
 }
 
 
@@ -145,7 +145,7 @@ def load_training_config(path):
         values.update(content)
     values["features"] = selection(values.get("features"))
     values["source"] = _path(path, values.get("source", "../datasets/m5"))
-    _positive(values, ("context", "horizon", "train_end", "steps", "batch_size"))
+    _positive(values, ("context", "horizon", "train_end", "epochs", "batch_size"))
     for name in ("workers", "seed"):
         if type(values[name]) is not int or values[name] < 0:
             raise ValueError(f"{name} must be nonnegative")

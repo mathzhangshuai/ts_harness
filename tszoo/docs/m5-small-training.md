@@ -27,11 +27,13 @@ python run.py train
 - 每个窗口输入 512 天，标签 28 天；训练标签不进入 d_1914–d_1941。
 - 默认不启用商品、门店、价格、节日等协变量；只有在 `data.features` 中选择的字段才进入模型。
 - Small 原始权重来自下载配置固定的 revision 和 SHA-256。
-- 默认全参数微调，1,000 步、batch size 8、学习率 1e-5、AdamW、梯度范数上限 1.0、seed 0、FP32。
-- 从合法窗口中有放回抽样；优化原模型的分位数损失，保存最后一步模型。
+- 默认全参数微调，`epochs: 1`、batch size 8、学习率 1e-5、AdamW、梯度范数上限 1.0、seed 0、FP32。
+- 使用 DataLoader 每轮打乱、无放回遍历全部合法窗口，保留最后不足一个 batch 的样本；优化分位数损失，保存最后一轮结束后的模型。
 - 不另设验证集，不早停，不用评测区间选择检查点。超参数是起点，未作本地训练调优。
 
-CLI 可覆盖 `--steps 2000 --batch-size 4 --lr 0.000005 --output runs/another-run`。
+CLI 可覆盖 `--epochs 3 --batch-size 4 --lr 0.000005 --output runs/another-run`。旧 `steps` 配置和 `--steps` 参数不再接受。
+
+默认窗口设置共生成 41,893,260 个训练样本；batch size 8 时，每轮有 5,236,658 个 batch。`--dry-run` 显示轮数、每轮 batch 数及总更新次数。无放回指每个窗口每轮恰好使用一次，相邻窗口仍可能共享历史日期。
 
 `--dry-run` 在 CPU 加载模型并检查窗口，不执行前向、反向、优化器或模型保存；它不验证 GPU 显存需求。
 

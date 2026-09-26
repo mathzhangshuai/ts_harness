@@ -30,7 +30,9 @@ class ConfigurationTests(unittest.TestCase):
             raw = yaml.safe_load((PROJECT / "configs/train_small.yaml").read_text())
             for section, key, value in (
                 ("data", "fields", ["target", "feat_dynamic_real"]),
-                ("training", "steps", True),
+                ("training", "epochs", True),
+                ("training", "epochs", 0),
+                ("training", "steps", 1000),
                 ("training", "lr", float("nan")),
             ):
                 invalid = yaml.safe_load(yaml.safe_dump(raw))
