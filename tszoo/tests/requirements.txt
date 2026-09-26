@@ -1,0 +1,2 @@
+# Only required for numerical parity tests against local upstream source.
+einops==0.8.2

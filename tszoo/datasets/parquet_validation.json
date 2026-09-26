@@ -1,0 +1,34 @@
+[
+  {
+    "path": "datasets/freshretailnet-50k/data/train.parquet",
+    "rows": 4500000,
+    "columns": 19,
+    "row_groups": 4500,
+    "full_batch_decode": "passed",
+    "pandas_selected_columns": "passed"
+  },
+  {
+    "path": "datasets/freshretailnet-50k/data/eval.parquet",
+    "rows": 350000,
+    "columns": 19,
+    "row_groups": 350,
+    "full_batch_decode": "passed",
+    "pandas_selected_columns": "passed"
+  },
+  {
+    "path": "datasets/freshretailnet-lt/data/train.parquet",
+    "rows": 7869549,
+    "columns": 19,
+    "row_groups": 7870,
+    "full_batch_decode": "passed",
+    "pandas_selected_columns": "passed"
+  },
+  {
+    "path": "datasets/freshretailnet-lt/data/eval.parquet",
+    "rows": 70000,
+    "columns": 19,
+    "row_groups": 70,
+    "full_batch_decode": "passed",
+    "pandas_selected_columns": "passed"
+  }
+]

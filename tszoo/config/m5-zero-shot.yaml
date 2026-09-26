@@ -1,0 +1,48 @@
+store: ../datasets/processed/m5-zero-shot
+output: ../runs/m5-zero-shot
+context: 512
+horizon: 28
+origin: 1913
+batch_size: 16
+device: auto
+variate_attention: grouped
+variate_attention_policy: bidirectional
+quantiles:
+- 0.01
+- 0.05
+- 0.1
+- 0.2
+- 0.3
+- 0.4
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+- 0.95
+- 0.99
+models:
+  chronos2:
+    path: ../.model-cache/hub/models--amazon--chronos-2/snapshots/29ec3766d36d6f73f0696f85560a422f50e8498c
+    repo_id: amazon/chronos-2
+    revision: 29ec3766d36d6f73f0696f85560a422f50e8498c
+    files:
+      config.json: ef1143bfdc9c0376d9a056eefca46cb4b1ec3d0ffacd541ff56feb40fb708031
+      model.safetensors: ddcda3c7508bf2528087723e98a20707cc04b7f370ae275a9fd88078ddba4f42
+  chronos2_synth:
+    path: ../.model-cache/hub/models--autogluon--chronos-2-synth/snapshots/3607918a9fd027d5c465d8213e46b98e2c041cea
+    repo_id: autogluon/chronos-2-synth
+    revision: 3607918a9fd027d5c465d8213e46b98e2c041cea
+    files:
+      config.json: 01fd2b164b1ea49588624d369c37fcd67acfc12735c1082d79f5ec14a4d7cf37
+      model.safetensors: 920a3344726a8026c9335d38ae1a2bfa9b7d659c1b8fe0b0af8d5f775863422e
+  chronos2_small:
+    path: ../.model-cache/hub/models--autogluon--chronos-2-small/snapshots/ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a
+    repo_id: autogluon/chronos-2-small
+    revision: ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a
+    files:
+      config.json: f2780468adc8b16322aa0b6e28b26476c9401ecf64ab53292b6d2b0d3f423722
+      model.safetensors: 492290ae82bb89f9769e3479ce90b3179de1f33e600c34daa0352531538b23cd
+dataset:
+  name: m5
+  path: ../datasets/m5

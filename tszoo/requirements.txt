@@ -1,0 +1,25 @@
+# Environment: ts_harness_env (Python 3.11)
+# Install from tszoo: python -m pip install -r requirements.txt
+--index-url https://pypi.org/simple
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+# Keep the installed CUDA 12.1 builds; do not substitute CPU builds.
+torch==2.5.1+cu121
+
+# Forecasting with the PyTorch backend.
+gluonts[torch]==0.16.3
+numpy==2.4.6
+pandas==2.3.3
+
+# Development tooling and HTTP dependency.
+ruff==0.16.9
+requests==2.34.2
+
+# Parquet column selection and batch reading.
+pyarrow==25.0.1
+
+# Read local pretrained checkpoint tensors without installing Chronos.
+safetensors==0.6.2
+
+# Safe YAML experiment configuration (already present via the current environment).
+PyYAML==6.0.3

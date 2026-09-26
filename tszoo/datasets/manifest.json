@@ -1,0 +1,72 @@
+{
+  "downloaded_at_utc": "2026-09-25T01:11:00.136163+00:00",
+  "freshretailnet_revision": "08c1fab7f9257bc73679d415d65d644165d351d4",
+  "freshretailnet_lt_revision": "8a9543bee53de0e2edc90881c2bbd2bfb711cc51",
+  "m5_source": "https://zenodo.org/records/10203108",
+  "m5_original_source": "https://www.kaggle.com/competitions/m5-forecasting-accuracy/data",
+  "files": [
+    {
+      "path": "freshretailnet-50k/data/eval.parquet",
+      "url": "https://huggingface.co/datasets/Dingdong-Inc/FreshRetailNet-50K/resolve/08c1fab7f9257bc73679d415d65d644165d351d4/data/eval.parquet",
+      "bytes": 8440124,
+      "checksum": "sha256:1b118840664280c6b88bffc84c80ee1f54c05d911e354b7599e5da10995e960e",
+      "sha256": "1b118840664280c6b88bffc84c80ee1f54c05d911e354b7599e5da10995e960e"
+    },
+    {
+      "path": "freshretailnet-50k/data/train.parquet",
+      "url": "https://huggingface.co/datasets/Dingdong-Inc/FreshRetailNet-50K/resolve/08c1fab7f9257bc73679d415d65d644165d351d4/data/train.parquet",
+      "bytes": 106436287,
+      "checksum": "sha256:6706832db892bbae4969c19d87e07975d2543d2ba7d7d4756360654785de5a3d",
+      "sha256": "6706832db892bbae4969c19d87e07975d2543d2ba7d7d4756360654785de5a3d"
+    },
+    {
+      "path": "freshretailnet-lt/data/eval.parquet",
+      "url": "https://huggingface.co/datasets/Dingdong-Inc/FreshRetailNet-LT/resolve/8a9543bee53de0e2edc90881c2bbd2bfb711cc51/data/eval.parquet",
+      "bytes": 2009424,
+      "checksum": "sha256:370ca7f995d2a059744e1659eb681e60db694bec2f80a84252426afdd2b6d626",
+      "sha256": "370ca7f995d2a059744e1659eb681e60db694bec2f80a84252426afdd2b6d626"
+    },
+    {
+      "path": "freshretailnet-lt/data/train.parquet",
+      "url": "https://huggingface.co/datasets/Dingdong-Inc/FreshRetailNet-LT/resolve/8a9543bee53de0e2edc90881c2bbd2bfb711cc51/data/train.parquet",
+      "bytes": 315398578,
+      "checksum": "sha256:e744c537ed16a8254c50f8456de7c5614866d4d8b6787e3cc3b67be02ea2f1e3",
+      "sha256": "e744c537ed16a8254c50f8456de7c5614866d4d8b6787e3cc3b67be02ea2f1e3"
+    },
+    {
+      "path": "m5/sales_train_validation.csv",
+      "url": "https://zenodo.org/api/records/10203108/files/sales_train_validation.csv/content",
+      "bytes": 120007726,
+      "checksum": "md5:26a366a25beb57b0a8f4c7b148758f94",
+      "sha256": "f368e66ed1dbecb48b2cc8fc589bf68b3deddbbb36bf5c88b4d6d0a09b9b6724"
+    },
+    {
+      "path": "m5/sales_train_evaluation.csv",
+      "url": "https://zenodo.org/api/records/10203108/files/sales_train_evaluation.csv/content",
+      "bytes": 121736518,
+      "checksum": "md5:b806dfc9f30a745102b708c09951f6aa",
+      "sha256": "4b4a47c44c38380d2a9168216fea8c9ff2f31b1ddb772f8a0995952a038b8aa0"
+    },
+    {
+      "path": "m5/sell_prices.csv",
+      "url": "https://zenodo.org/api/records/10203108/files/sell_prices.csv/content",
+      "bytes": 203395785,
+      "checksum": "md5:08c591caa99e55daf3e0ccac913f7c85",
+      "sha256": "9da3ad1f8b8ccacdbdc70612191dd375ec24a4ac6625c24b75b3bc60b0bed2ef"
+    },
+    {
+      "path": "m5/calendar.csv",
+      "url": "https://zenodo.org/api/records/10203108/files/calendar.csv/content",
+      "bytes": 103469,
+      "checksum": "md5:3ffeab2991b0c8e861d008b39ea4c95c",
+      "sha256": "d12b5914ef03e66649adf5dd9e996e6602251c22b7a6af8f1f7e3aa12f8860f5"
+    },
+    {
+      "path": "m5/sample_submission.csv",
+      "url": "https://zenodo.org/api/records/10203108/files/sample_submission.csv/content",
+      "bytes": 5228786,
+      "checksum": "md5:c281a69d7c011274899d92020a66e25b",
+      "sha256": "eb7597afbec367475ef25dc6dbbc009b8faa47fa2107252c72a029e3cdf72343"
+    }
+  ]
+}

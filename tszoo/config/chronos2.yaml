@@ -1,0 +1,20 @@
+data:
+  store: ../datasets/processed/chronos2-smoke-50k
+  schema: ../datasets/processed/chronos2-smoke-50k/schema.json
+  context: 32
+  horizon: 7
+  train_end: 60
+  fields: null
+model:
+  pretrained: ../.model-cache/hub/models--amazon--chronos-2/snapshots/29ec3766d36d6f73f0696f85560a422f50e8498c
+  variate_attention: grouped
+  variate_attention_policy: target_aware
+  freeze_backbone: true
+training:
+  output: ../runs/chronos2-target-aware
+  steps: 1
+  batch_size: 2
+  workers: 0
+  lr: 0.0001
+  seed: 0
+  device: cpu

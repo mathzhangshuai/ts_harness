@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tszoo"
+version = "0.1.0"
+description = "Standalone PyTorch and GluonTS time-series experiments"
+requires-python = ">=3.11"
+dependencies = [
+  "torch>=2.5,<2.6",
+  "gluonts==0.16.3",
+  "numpy==2.4.6",
+  "pandas==2.3.3",
+  "pyarrow==25.0.1",
+  "safetensors==0.6.2",
+  "PyYAML==6.0.3",
+  "requests==2.34.2",
+]
+
+[project.scripts]
+tszoo-evaluate = "tszoo.utils.evaluate_m5:main"
+tszoo-download = "tszoo.utils.resources:main"
+tszoo-wrmsse = "tszoo.utils.score_m5_wrmsse:main"
+tszoo-train = "tszoo.utils.train:main"
+
+[tool.setuptools]
+packages = [
+  "tszoo", "tszoo.config", "tszoo.data", "tszoo.layers", "tszoo.models",
+  "tszoo.models.chronos2", "tszoo.utils",
+]
+package-dir = { tszoo = "." }
+
+[tool.setuptools.package-data]
+tszoo = ["config/*.yaml", "config/*.json", "data/*.json", "models/chronos2/LICENSE", "models/chronos2/NOTICE.md"]
