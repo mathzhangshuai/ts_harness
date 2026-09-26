@@ -158,7 +158,7 @@ def load_training_config(path):
         optional = (
             {"features", "source"}
             if section == "data"
-            else {"devices", "strategy"}
+            else {"devices", "strategy", "shuffle_block_size"}
             if section == "training"
             else {"attention"}
         )
@@ -170,6 +170,7 @@ def load_training_config(path):
     values["source"] = _path(path, values.get("source", "../datasets/m5"))
     values.setdefault("devices", "auto")
     values.setdefault("strategy", "auto")
+    values.setdefault("shuffle_block_size", 65536)
     if values["devices"] != "auto" and (
         type(values["devices"]) is not int or values["devices"] < 1
     ):
@@ -178,7 +179,17 @@ def load_training_config(path):
         raise ValueError("strategy must be auto or ddp")
     if values["device"] not in ("cpu", "cuda", "auto"):
         raise ValueError("Training device must be cpu, cuda or auto")
-    _positive(values, ("context", "horizon", "train_end", "epochs", "batch_size"))
+    _positive(
+        values,
+        (
+            "context",
+            "horizon",
+            "train_end",
+            "epochs",
+            "batch_size",
+            "shuffle_block_size",
+        ),
+    )
     for name in ("workers", "seed"):
         if type(values[name]) is not int or values[name] < 0:
             raise ValueError(f"{name} must be nonnegative")
@@ -201,6 +212,10 @@ def training_config(args):
         for section, names in SECTIONS.items()
     }
     result["data"].update(features=args.features, source=args.source)
-    result["training"].update(devices=args.devices, strategy=args.strategy)
+    result["training"].update(
+        devices=args.devices,
+        strategy=args.strategy,
+        shuffle_block_size=args.shuffle_block_size,
+    )
     result["model"]["attention"] = args.attention
     return result

@@ -27,14 +27,15 @@ python run.py train
 - 每个窗口输入 512 天，标签 28 天；训练标签不进入 d_1914–d_1941。
 - 默认不启用商品、门店、价格、节日等协变量；只有在 `data.features` 中选择的字段才进入模型。
 - Small 原始权重来自下载配置固定的 revision 和 SHA-256。
-- 默认全参数微调，`epochs: 1`、batch size 8、学习率 1e-5、AdamW、梯度范数上限 1.0、seed 0、FP32。
+- 默认全参数微调，`epochs: 6`、每卡 batch size 256、每卡 12 个 DataLoader worker、学习率 1e-5、AdamW、梯度范数上限 1.0、seed 0、FP32。多卡全局 batch size 为 `256 * 卡数`，worker 总数为 `12 * 卡数`。
 - 使用 Lightning 2.4 管理训练循环、自动优化、梯度裁剪、进度条和 DDP。DataLoader 每轮打乱、无放回抽取窗口，`drop_last=True`，丢弃不足一个 batch 的尾部样本。
-- Lightning DataModule 提供 DataLoader，Trainer 开启自动分布式采样管理。多卡显式提供 PyTorch 标准 `DistributedSampler(drop_last=True)`，以满足无放回且不重复补齐的要求；Lightning 识别并保留它，每轮更新 sampler 的 epoch。只有 rank 0 保存最终模型和报告。
+- Lightning DataModule 提供 DataLoader，使用继承 `DistributedSampler` 的 `BlockShuffleSampler`；Lightning 识别并保留它，每轮更新 epoch。采样流按位置分给各卡，不重复补齐，各卡批次数一致。只有 rank 0 保存最终模型和报告。
+- `training.shuffle_block_size: 65536` 控制索引块大小，也可用 `--shuffle-block-size` 覆盖。每轮打乱块顺序，再按需打乱当前块；默认 M5 仅保存 640 个块编号和至多 65,536 个 int64 窗口索引，约 517 KiB，而非全部 4,189 万个窗口索引。Dataset 按索引读取当前窗口，DataLoader 仅组装当前批次及有限的 worker 预取批次。分块打乱不是全局均匀随机排列，相邻批次的数据混合程度较低；块越大，混合范围和索引内存越大。
 - 不另设验证集，不早停，不用评测区间选择检查点。超参数是起点，未作本地训练调优。
 
 CLI 可覆盖 `--epochs 3 --batch-size 4 --lr 0.000005 --output runs/another-run`。旧 `steps` 配置和 `--steps` 参数不再接受。
 
-默认窗口设置共生成 41,893,260 个训练样本；单卡 batch size 8 时，每轮有 5,236,657 个完整 batch，丢弃 4 个尾部样本。`--dry-run` 显示单卡批次数作为参考，不启动 GPU 或 DDP。多卡每轮每卡批次数为 `floor(floor(样本数 / 卡数) / batch_size)`；batch size 是每卡大小。
+默认窗口设置共生成 41,893,260 个训练样本；单卡 batch size 256 时，每轮有 163,645 个完整 batch，丢弃 140 个尾部样本，6 轮共 981,870 步。`--dry-run` 显示单卡批次数作为参考，不启动 GPU 或 DDP。多卡每轮每卡批次数为 `floor(floor(样本数 / 卡数) / batch_size)`；batch size 是每卡大小。
 
 `training.device: cuda`、`devices: auto`、`strategy: auto` 默认使用所有可见 GPU，由 Lightning 选择单卡或 DDP。可设置 `devices: 2`、`strategy: ddp`，或通过 `--devices 2 --strategy ddp` 覆盖。CPU 使用 `device: cpu`。仍使用本地改编的 Chronos-2 主干，而非官方 Pipeline.fit。
 
@@ -50,7 +51,7 @@ CLI 可覆盖 `--epochs 3 --batch-size 4 --lr 0.000005 --output runs/another-run
 python run.py evaluate --checkpoint runs/m5-small-target-train --output runs/m5-small-target-eval
 ```
 
-这与零样本模型共用相同的 28 天留出区间、q0.5 点预测以及三个评分指标。已有输出目录不会被覆盖。评测推理不丢弃尾部批次，默认 `configs/baseline.yaml` 中 `batch_size: 80`，为默认训练批次 8 的十倍；两者独立配置，可用 `evaluate --batch-size 80` 覆盖，并按云端显存调整。
+这与零样本模型共用相同的 28 天留出区间、q0.5 点预测以及三个评分指标。已有输出目录不会被覆盖。评测推理不丢弃尾部批次，默认 `configs/baseline.yaml` 中 `batch_size: 80`；评测与训练批次独立配置，可用 `evaluate --batch-size` 覆盖，并按云端显存调整。
 
 ## 产物
 

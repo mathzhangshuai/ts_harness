@@ -35,6 +35,8 @@ class ConfigurationTests(unittest.TestCase):
                 ("training", "steps", 1000),
                 ("training", "devices", 0),
                 ("training", "devices", True),
+                ("training", "shuffle_block_size", 0),
+                ("training", "shuffle_block_size", True),
                 ("training", "strategy", "invalid"),
                 ("model", "attention", {"variate_attention_policy": "invalid"}),
                 ("training", "lr", float("nan")),

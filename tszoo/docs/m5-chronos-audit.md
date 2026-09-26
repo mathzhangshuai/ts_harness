@@ -60,12 +60,15 @@ worker seeding. A LightningDataModule provides the loaders.
 M5 CSV joins, named feature selection and leak-free temporal windows remain
 dataset-specific code; Lightning does not implement these semantics.
 
-Trainer automatic sampler management is enabled. The sole distributed sampling
-exception is a standard PyTorch `DistributedSampler(drop_last=True)` supplied
-by the DataModule. Lightning 2.4's automatic sampler otherwise defaults to
-padding with repeated indices; DataLoader.drop_last alone does not configure
-the distributed sampler. Lightning keeps an existing DistributedSampler and
-calls set_epoch itself. No custom sampler algorithm or manual process launch exists.
+Trainer automatic sampler management is enabled. The DataModule supplies a
+`BlockShuffleSampler`, a DistributedSampler subclass with drop_last enabled.
+The standard random samplers materialize a full epoch permutation; this local
+extension retains only block order and the current block permutation. It shuffles
+blocks and their contents, then shards stream positions without duplicate padding.
+This is not a uniform global permutation; nearby batches mix fewer series.
+Index storage is O(block_size + ceil(window_count / block_size)). Lightning keeps
+the existing DistributedSampler and calls set_epoch itself. DataLoader also drops
+partial training batches. Process launch and synchronization remain in Lightning.
 
 Evaluation remains a single-process complete traversal, retaining partial batches.
 

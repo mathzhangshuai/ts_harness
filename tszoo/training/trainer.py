@@ -8,10 +8,11 @@ from pathlib import Path
 import lightning as L
 import torch
 import yaml
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader
 
 from ..config import ROOT, load_training_config, training_config
 from ..data import MemmapWindows, collate_windows
+from ..data.sampler import BlockShuffleSampler
 from ..models.chronos2 import load_model
 
 
@@ -33,6 +34,7 @@ def parse_args(argv=None):
         "batch_size",
         "workers",
         "seed",
+        "shuffle_block_size",
     ):
         parser.add_argument("--" + name.replace("_", "-"), type=int)
     parser.add_argument("--lr", type=float)
@@ -49,7 +51,14 @@ def parse_args(argv=None):
         parser.error(str(error))
     args = parser.parse_args(argv)
     if (
-        min(args.context, args.horizon, args.train_end, args.epochs, args.batch_size)
+        min(
+            args.context,
+            args.horizon,
+            args.train_end,
+            args.epochs,
+            args.batch_size,
+            args.shuffle_block_size,
+        )
         < 1
         or min(args.workers, args.seed) < 0
         or not math.isfinite(args.lr)
@@ -66,20 +75,15 @@ def parse_args(argv=None):
 
 
 def training_loader(dataset, args, *, world_size=1, rank=0):
-    sampler = None
-    if world_size > 1:
-        # Drop the distributed tail instead of padding it with repeated windows.
-        sampler = DistributedSampler(
-            dataset,
-            num_replicas=world_size,
-            rank=rank,
-            shuffle=True,
-            seed=args.seed,
-            drop_last=True,
-        )
+    sampler = BlockShuffleSampler(
+        dataset,
+        block_size=args.shuffle_block_size,
+        num_replicas=world_size,
+        rank=rank,
+        seed=args.seed,
+    )
     return DataLoader(
         dataset,
-        shuffle=sampler is None,
         sampler=sampler,
         drop_last=True,
         batch_size=args.batch_size,
@@ -198,6 +202,7 @@ def run(args):
                 "single_device_batches_per_epoch": len(loader),
                 "single_device_total_steps": args.epochs * len(loader),
                 "drop_last": True,
+                "shuffle_block_size": args.shuffle_block_size,
                 "devices": args.devices,
                 "strategy": args.strategy,
                 "model_settings": {

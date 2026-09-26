@@ -54,9 +54,11 @@ class TrainingChecks(unittest.TestCase):
                 report = run(args)
             self.assertEqual(report["fields"], ["target"])
             self.assertEqual(report["training_windows"], 1374)
-            self.assertEqual(report["epochs"], 1)
-            self.assertEqual(report["single_device_batches_per_epoch"], 171)
-            self.assertEqual(report["single_device_total_steps"], 171)
+            self.assertEqual(report["epochs"], 6)
+            self.assertEqual(report["batch_size"], 256)
+            self.assertEqual(args.workers, 12)
+            self.assertEqual(report["single_device_batches_per_epoch"], 5)
+            self.assertEqual(report["single_device_total_steps"], 30)
             self.assertTrue(report["drop_last"])
             self.assertTrue(report["model_settings"]["use_arcsinh"])
             self.assertEqual(
@@ -75,11 +77,14 @@ class TrainingChecks(unittest.TestCase):
             parse_args(["--train-end", "1914"])
 
     def test_epoch_samples_without_replacement_and_drops_partial_batch(self):
-        args = parse_args(["--epochs", "2", "--batch-size", "4", "--dry-run"])
+        args = parse_args(
+            ["--epochs", "2", "--batch-size", "4", "--workers", "0", "--dry-run"]
+        )
         dataset = list(range(19))
         loader = training_loader(dataset, args)
         orders = []
-        for _ in range(args.epochs):
+        for epoch in range(args.epochs):
+            loader.sampler.set_epoch(epoch)
             batches = list(loader)
             self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 4])
             order = [index for batch in batches for index in batch]
@@ -88,11 +93,12 @@ class TrainingChecks(unittest.TestCase):
             orders.append(order)
         self.assertNotEqual(orders[0], orders[1])
         replay = training_loader(dataset, args)
-        for order in orders:
+        for epoch, order in enumerate(orders):
+            replay.sampler.set_epoch(epoch)
             self.assertEqual(order, [index for batch in replay for index in batch])
 
     def test_distributed_epochs_have_disjoint_samples_without_padding(self):
-        args = parse_args(["--batch-size", "4", "--dry-run"])
+        args = parse_args(["--batch-size", "4", "--workers", "0", "--dry-run"])
         loaders = [
             training_loader(list(range(19)), args, world_size=2, rank=rank)
             for rank in range(2)
@@ -157,6 +163,8 @@ class TrainingChecks(unittest.TestCase):
                     "7",
                     "--train-end",
                     "40",
+                    "--batch-size",
+                    "8",
                 ]
             )
             trainer = Mock(interrupted=True)
